@@ -1,0 +1,38 @@
+version: '3'
+
+services:
+  centreon-web:
+    build: ./centreon-web
+    depends_on:
+      - centreon-db
+    environment:
+      MYSQL_HOST: "centreon-db"
+      MYSQL_PORT: "3306"
+      MYSQL_USER: "centreon"
+      MYSQL_PASSWD: "c3ntr30n"
+      MYSQL_ROOT_PASSWORD: "change123"
+      CENTREON_ADMIN_NAME: "Administrator"
+      CENTREON_ADMIN_EMAIL: "admin@admin.co"
+      CENTREON_ADMIN_PASSWD: "change123"
+    ports:
+      - "8080:80"
+    volumes:
+      - ./ssh/id_rsa:/var/spool/centreon/.ssh/id_rsa
+      - ./licenses:/etc/centreon/license.d
+  centreon-db:
+    image: mariadb:10.3
+    command: mysqld --open-files-limit=32000
+    environment:
+      MYSQL_ROOT_PASSWORD: "change123"
+  centreon-engine-1:
+    build: ./centreon-engine
+    depends_on:
+      - centreon-web
+  centreon-engine-2:
+    build: ./centreon-engine
+    depends_on:
+      - centreon-web
+  centreon-engine-3:
+    build: ./centreon-engine
+    depends_on:
+      - centreon-web

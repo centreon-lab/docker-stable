@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<conf>
+
+ <!-- Global configuration options. -->
+ <broker_id>2</broker_id>
+ <broker_name>central-rrd</broker_name>
+ <poller_id>1</poller_id>
+ <poller_name>Central</poller_name>
+ <module_directory>/usr/share/centreon/lib/centreon-broker</module_directory>
+ <event_queue_max_size>10000</event_queue_max_size>
+ <flush_logs>no</flush_logs>
+ <log_thread_id>no</log_thread_id>
+ <log_timestamp>yes</log_timestamp>
+ <cache_directory>/var/lib/centreon-broker</cache_directory>
+ <command_file>/var/lib/centreon-broker/central-rrd.cmd</command_file>
+
+ <!-- Read performance data. -->
+ <input>
+  <retry_interval>60</retry_interval>
+  <type>tcp</type>
+  <name>central-rrd-input</name>
+  <port>5670</port>
+  <protocol>bbdo</protocol>
+  <tls>auto</tls>
+  <negociation>yes</negociation>
+  <compression>auto</compression>
+ </input>
+
+ <!-- Write RRD files. -->
+ <output>
+  <retry_interval>60</retry_interval>
+  <metrics_path>/var/lib/centreon/metrics</metrics_path>
+  <status_path>/var/lib/centreon/status</status_path>
+  <path></path>
+  <port></port>
+  <write_metrics>yes</write_metrics>
+  <write_status>yes</write_status>
+  <type>rrd</type>
+  <name>central-rrd-files</name>
+ </output>
+
+ <!-- Log file. -->
+ <logger>
+  <config>yes</config>
+  <debug>no</debug>
+  <error>yes</error>
+  <info>yes</info>
+  <level>low</level>
+  <type>file</type>
+  <name>/var/log/centreon-broker/central-rrd.log</name>
+ </logger>
+
+ <!-- Statistics. -->
+ <stats>
+  <type>stats</type>
+  <name>central-rrd-stats</name>
+  <fifo>/var/lib/centreon-broker/central-rrd.stats</fifo>
+ </stats>
+
+</conf>
