@@ -9,47 +9,25 @@ RUN yum install -y \
     centos-release-scl \
     wget \
     sudo \
-    postfix \
-    python-devel \
-    unzip \
     openssh-clients \
-    openssh-server \
+    postfix \
+    rsyslog \
+    python-devel \
+    git \
+    unzip \
+    cronie \
   && wget http://yum.centreon.com/standard/19.04/el7/stable/noarch/RPMS/${CENTREON_REPO_VERSION} -O /tmp/${CENTREON_REPO_VERSION} \
   && yum install --nogpgcheck -y /tmp/${CENTREON_REPO_VERSION} \
+  && yum-config-manager -q --enable centreon-canary \
+  && yum-config-manager -q --enable centreon-canary-noarch \
   && yum install -y \
-    centreon-clib-devel \
-    gcc \
-    gcc-c++ \
-    make \
-    cmake \
+    centreon-engine \
   && wget -O - https://bootstrap.pypa.io/get-pip.py | python - \
   && pip install supervisor requests \
   && echo_supervisord_conf > /etc/supervisord.conf \
   && mkdir /etc/supervisor.d \
   && echo '[include]' >> /etc/supervisord.conf \
-  && echo 'files = /etc/supervisor.d/*.ini' >> /etc/supervisord.conf
-
-RUN echo "Compiling and installing Centreon-Engine..." \
-  && groupadd centreon-engine \
-  && useradd -g centreon-engine -m -r -d /var/lib/centreon-engine centreon-engine \
-  && cd /tmp \
-  && wget -O centreon-engine-${BRANCH_CENTREON_ENGINE}.zip https://github.com/centreon/centreon-engine/archive/${BRANCH_CENTREON_ENGINE}.zip \
-  && unzip centreon-engine-${BRANCH_CENTREON_ENGINE}.zip \
-  && cd centreon-engine-${BRANCH_CENTREON_ENGINE}/build \
-  && cmake \
-   -DWITH_PREFIX=/usr \
-   -DWITH_PREFIX_BIN=/usr/sbin \
-   -DWITH_PREFIX_CONF=/etc/centreon-engine \
-   -DWITH_PREFIX_LIB=/usr/lib/centreon-engine \
-   -DWITH_USER=centreon-engine \
-   -DWITH_GROUP=centreon-engine \
-   -DWITH_VAR_DIR=/var/log/centreon-engine \
-   -DWITH_RW_DIR=/var/lib/centreon-engine/rw \
-   -DWITH_PKGCONFIG_DIR=/usr/lib/pkgconfig \
-   -DWITH_TESTING=0 \
-  && make \
-  && make install \
-  && mkdir -p /usr/share/centreon-engine \
+  && echo 'files = /etc/supervisor.d/*.ini' >> /etc/supervisord.conf \
   && ssh-keygen -t rsa -f /etc/ssh/ssh_host_rsa_key -N ''
 
 COPY files/supervisord/sshd.ini /etc/supervisor.d/sshd.ini
