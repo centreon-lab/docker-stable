@@ -135,24 +135,24 @@ fi
 touch /var/log/centreon/login.log
 
 # After Centreon configuration, install modules
-#if [ ! "$(rpm -aq | grep centreon-map-release)" ]; then
-#    yum install -y http://yum.centreon.com/centreon-map/bfcfef6922ae08bd2b641324188d8a5f/19.04/el7/stable/noarch/RPMS/centreon-map-release-19.04-1.el7.centos.noarch.rpm \
-#    && yum-config-manager -y -q --disable centreon-map-stable \
-#    && yum-config-manager -y -q --enable centreon-map-canary-noarch \
-#    && yum install -y centreon-map-server
-#fi
-#if [ ! "$(rpm -aq | grep centreon-bam-release)" ]; then
-#    yum install -y http://yum.centreon.com/centreon-bam/d4e1d7d3e888f596674453d1f20ff6d3/19.04/el7/stable/noarch/RPMS/centreon-bam-release-19.04-1.el7.centos.noarch.rpm \
-#    && yum-config-manager -y -q --disable centreon-bam-stable \
-#    && yum-config-manager -y -q --enable centreon-bam-canary-noarch \
-#    && yum install -y centreon-bam-server
-#fi
-#if [ ! "$(rpm -aq | grep centreon-mbi-release)" ]; then
-#    yum install -y http://yum.centreon.com/centreon-mbi/5e0524c1c4773a938c44139ea9d8b4d7/19.04/el7/stable/noarch/RPMS/centreon-mbi-release-19.04-1.el7.centos.noarch.rpm \
-#    && yum-config-manager -y -q --disable centreon-mbi-stable \
-#    && yum-config-manager -y -q --enable centreon-mbi-canary-noarch \
-#    && yum install -y centreon-bi-server
-#fi
+if [ ! "$(rpm -aq | grep centreon-map-release)" ]; then
+    yum install -y http://yum.centreon.com/centreon-map/bfcfef6922ae08bd2b641324188d8a5f/19.04/el7/stable/noarch/RPMS/centreon-map-release-19.04-1.el7.centos.noarch.rpm \
+    && yum-config-manager -y -q --disable centreon-map-stable \
+    && yum-config-manager -y -q --enable centreon-map-canary-noarch \
+    && yum install -y centreon-map-server
+fi
+if [ ! "$(rpm -aq | grep centreon-bam-release)" ]; then
+    yum install -y http://yum.centreon.com/centreon-bam/d4e1d7d3e888f596674453d1f20ff6d3/19.04/el7/stable/noarch/RPMS/centreon-bam-release-19.04-1.el7.centos.noarch.rpm \
+    && yum-config-manager -y -q --disable centreon-bam-stable \
+    && yum-config-manager -y -q --enable centreon-bam-canary-noarch \
+    && yum install -y centreon-bam-server
+fi
+if [ ! "$(rpm -aq | grep centreon-mbi-release)" ]; then
+    yum install -y http://yum.centreon.com/centreon-mbi/5e0524c1c4773a938c44139ea9d8b4d7/19.04/el7/stable/noarch/RPMS/centreon-mbi-release-19.04-1.el7.centos.noarch.rpm \
+    && yum-config-manager -y -q --disable centreon-mbi-stable \
+    && yum-config-manager -y -q --enable centreon-mbi-canary-noarch \
+    && yum install -y centreon-bi-server
+fi
 
 # Fix permissions:
 find /etc/centreon* -type d | xargs chmod -v 0775
