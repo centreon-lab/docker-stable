@@ -3,6 +3,9 @@ FROM centos:7
 LABEL maintainer="Luiz Costa <me@luizgustavo.pro.br>"
 
 ENV CENTREON_REPO_VERSION centreon-release-19.04-1.el7.centos.noarch.rpm
+ENV BRANCH_CENTREON_WEB master
+ENV BRANCH_CENTREON_BROKER master
+ENV BRANCH_CENTREON_ENGINE master
 ENV TIMEZONE "Europe/Paris"
 
 RUN yum install -y \
@@ -21,7 +24,14 @@ RUN yum install -y \
   && yum-config-manager -q --enable centreon-canary \
   && yum-config-manager -q --enable centreon-canary-noarch \
   && yum install -y \
-    centreon-base-config-centreon-engine
+    centreon-base-config-centreon-engine \
+  && wget -O - https://bootstrap.pypa.io/get-pip.py | python - \
+  && pip install supervisor requests \
+  && echo_supervisord_conf > /etc/supervisord.conf \
+  && mkdir /etc/supervisor.d \
+  && echo '[include]' >> /etc/supervisord.conf \
+  && echo 'files = /etc/supervisor.d/*.ini' >> /etc/supervisord.conf \
+  && echo "date.timezone = ${TIMEZONE}" > /etc/opt/rh/rh-php71/php.d/php-timezone.ini
 
 # Add postfix-wrapper
 # From: https://www.snip2code.com/Snippet/309436/postfix-wrapper-sh-for-supervisord-in-do
@@ -56,7 +66,5 @@ COPY files/central-rrd.xml /etc/centreon-broker/
 COPY files/poller-module.xml /etc/centreon-broker/
 COPY files/watchdog.xml /etc/centreon-broker/
 RUN chown -R centreon-broker:centreon-broker /etc/centreon-broker
-COPY files/conf.pm /tmp/conf.pm
-COPY files/centreon.conf.php /tmp/centreon.conf.php
 
 CMD /start.sh
