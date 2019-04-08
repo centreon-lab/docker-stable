@@ -53,7 +53,7 @@ testMySQL() {
 
 InstallDbCentreon() {
     echo "Starting Apache to apply configuration ..."
-    /usr/sbin/httpd -DFOREGROUND &2> /dev/null
+    /opt/rh/httpd24/root/sbin/httpd -DFOREGROUND &2> /dev/null
     PID_HTTPD=$!
     echo "Starting PHP-FPM to apply configuration ..."
     /opt/rh/rh-php71/root/usr/sbin/php-fpm -F &2> /dev/null
