@@ -124,6 +124,15 @@ installModules() {
         && yum install -y centreon-bi-server
     fi
 
+    echo "Starting Apache to apply configuration ..."
+    /opt/rh/httpd24/root/usr/sbin/httpd-scl-wrapper -DFOREGROUND &2> /dev/null
+    PID_HTTPD=$!
+    echo "Starting PHP-FPM to apply configuration ..."
+    /opt/rh/rh-php71/root/usr/sbin/php-fpm -F &2> /dev/null
+    PID_PHPFPM=$!
+
+    sleep 5 # waiting start httpd process
+
     CENTREON_HOST="http://localhost"
     CURL_CMD="curl -q -o /dev/null"
     API_TOKEN=$(curl -q -d "username=admin&password=${CENTREON_ADMIN_PASSWD}" \
@@ -220,6 +229,9 @@ installModules() {
         -H "centreon-auth-token: ${API_TOKEN}"\
         "${CENTREON_HOST}/centreon/api/index.php?object=centreon_module&action=install&id=mbi-typical-performance-day&type=widget"
 
+    echo "Kill Apache and PHP-FPM ..."
+    kill $PID_HTTPD
+    kill $PID_PHPFPM
 }
 
 
