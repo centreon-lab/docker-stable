@@ -106,10 +106,22 @@ installModules() {
 
     # After Centreon configuration, install modules
     if [ ! "$(rpm -aq | grep centreon-map-release)" ]; then
+        MYSQL_HOST_CLIENT=$( \
+            echo "SELECT host FROM information_schema.processlist WHERE ID=connection_id();" \
+            | mysql -u root --password="${MYSQL_ROOT_PASSWORD}" -h ${MYSQL_HOST} \
+            | sed 1d | cut -f1 -d":" \
+        )
+        echo "CREATE USER 'centreon_map'@'${MYSQL_HOST_CLIENT}' IDENTIFIED BY '${MYSQL_PASSWD}';" \
+            | mysql -u root --password="${MYSQL_ROOT_PASSWORD}" -h ${MYSQL_HOST}
+        echo "GRANT SELECT ON centreon_storage.* TO 'centreon_map'@'${MYSQL_HOST_CLIENT}';" \
+            | mysql -u root --password="${MYSQL_ROOT_PASSWORD}" -h ${MYSQL_HOST}
+        echo "GRANT SELECT, INSERT ON centreon.* TO 'centreon_map'@'${MYSQL_HOST_CLIENT}';" \
+            | mysql -u root --password="${MYSQL_ROOT_PASSWORD}" -h ${MYSQL_HOST}
+    
         yum install -y http://yum.centreon.com/centreon-map/bfcfef6922ae08bd2b641324188d8a5f/19.04/el7/stable/noarch/RPMS/centreon-map-release-19.04-1.el7.centos.noarch.rpm \
-        && yum-config-manager -y -q --disable centreon-map-stable \
-        && yum-config-manager -y -q --enable centreon-map-canary-noarch \
-        && yum install -y centreon-map-server
+            && yum-config-manager -y -q --disable centreon-map-stable \
+            && yum-config-manager -y -q --enable centreon-map-canary-noarch \
+            && yum install -y centreon-map-server
     fi
     if [ ! "$(rpm -aq | grep centreon-bam-release)" ]; then
         yum install -y http://yum.centreon.com/centreon-bam/d4e1d7d3e888f596674453d1f20ff6d3/19.04/el7/stable/noarch/RPMS/centreon-bam-release-19.04-1.el7.centos.noarch.rpm \
