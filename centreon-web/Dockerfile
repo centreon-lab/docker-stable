@@ -65,5 +65,7 @@ COPY files/watchdog.xml /etc/centreon-broker/
 RUN chown -R centreon-broker:centreon-broker /etc/centreon-broker
 COPY files/conf.pm /tmp/conf.pm
 COPY files/centreon.conf.php /tmp/centreon.conf.php
+COPY files/script.exp /tmp/configure-map.exp
+RUN chmod +x /tmp/configure-map.exp
 
 CMD /start.sh

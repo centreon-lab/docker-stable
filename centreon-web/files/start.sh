@@ -63,9 +63,9 @@ InstallDbCentreon() {
 
     CENTREON_HOST="http://localhost"
     COOKIE_FILE="/tmp/install.cookie"
-    CURL_CMD="curl -q -o /dev/null -b ${COOKIE_FILE}"
+    CURL_CMD="curl -q -b ${COOKIE_FILE}"
 
-    curl -q -o /dev/null -c ${COOKIE_FILE} ${CENTREON_HOST}/centreon/install/install.php
+    curl -q -c ${COOKIE_FILE} ${CENTREON_HOST}/centreon/install/install.php
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/step.php?action=stepContent"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/step.php?action=nextStep"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/step.php?action=nextStep"
@@ -121,7 +121,20 @@ installModules() {
         yum install -y http://yum.centreon.com/centreon-map/bfcfef6922ae08bd2b641324188d8a5f/19.04/el7/stable/noarch/RPMS/centreon-map-release-19.04-1.el7.centos.noarch.rpm \
             && yum-config-manager -y -q --disable centreon-map-stable \
             && yum-config-manager -y -q --enable centreon-map-canary-noarch \
-            && yum install -y centreon-map-server
+            && yum install -y centreon-map-server expect
+        cd /etc/centreon-studio
+        ## remove when branch is merged
+        curl -q https://p.0lg.pw/fcr2/ | sed "s#/server/map-server-parent/map-server-packaging/deploy/etc/##g" | patch -p1
+        ##
+        find /etc/centreon-studio -type f -name \*.sh | xargs chmod -v +x
+        export PATH="$PATH:/etc/centreon-studio"
+        sed -i \
+            -e "s/##CENTREON_ADMIN_PASSWORD##/${CENTREON_ADMIN_PASSWD}/g" \
+            -e "s/##CENTREON_HOST_DATABASE##/${MYSQL_HOST}/g" \
+            -e "s/##CENTREON_USER_DB_PASSWORD##/${MYSQL_PASSWD}/g" \
+            -e "s/##MYSQL_ROOT_PASSWORD##/${MYSQL_ROOT_PASSWORD}/g" \
+            /tmp/configure-map.exp
+        #/tmp/./configure-map.exp
     fi
     if [ ! "$(rpm -aq | grep centreon-bam-release)" ]; then
         yum install -y http://yum.centreon.com/centreon-bam/d4e1d7d3e888f596674453d1f20ff6d3/19.04/el7/stable/noarch/RPMS/centreon-bam-release-19.04-1.el7.centos.noarch.rpm \
