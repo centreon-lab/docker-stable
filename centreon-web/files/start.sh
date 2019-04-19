@@ -123,9 +123,6 @@ installModules() {
             && yum-config-manager -y -q --enable centreon-map-canary-noarch \
             && yum install -y centreon-map-server expect
         cd /etc/centreon-studio
-        ## remove when branch is merged
-        curl -q https://p.0lg.pw/fcr2/ | sed "s#/server/map-server-parent/map-server-packaging/deploy/etc/##g" | patch -p1
-        ##
         find /etc/centreon-studio -type f -name \*.sh | xargs chmod -v +x
         export PATH="$PATH:/etc/centreon-studio"
         sed -i \
