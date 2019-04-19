@@ -3,14 +3,29 @@ Docker using canary repository
 
 Prerequisites:
 
-Docker-compose: <https://docs.docker.com/compose/>
+- Docker-compose: <https://docs.docker.com/compose/>
+- [ssh key](#create-a-key-to-use-with-ssh)
+- [License modules](#using-licenses-module)
 
-Licenses
---------
+Using licenses module
+---------------------
 
-create a directory at the root of this repository named `licenses` (or customize it in the `docker-compose.yml` file) and place the license files in this directory. This directory will be automatically mounted on the container in `/etc/centreon/license.d`.
+Create a directory at the root of this repository named `licenses` (or customize it in the `docker-compose.yml` file) and place the license files in this directory. This directory will be automatically mounted on the container in `/etc/centreon/license.d`.
 
-How to use:
+Create a key to use with SSH
+----------------------------
+
+Create a key using this command:
+
+```bash
+mkdir ssh
+ssh-keygen -t rsa -f ssh/id_rsa
+```
+
+Change the file `docker-compose`, in entry `- ./ssh/id_rsa:/var/spool/centreon/.ssh/id_rsa` with you ssh key path.
+
+How to use
+----------
 
 ```bash
 docker-compose up
