@@ -73,7 +73,7 @@ InstallDbCentreon() {
         --data "install_dir_engine=%2Fusr%2Fshare%2Fcentreon-engine&centreon_engine_stats_binary=%2Fusr%2Fsbin%2Fcentenginestats&monitoring_var_lib=%2Fvar%2Flib%2Fcentreon-engine&centreon_engine_connectors=%2Fusr%2Flib64%2Fcentreon-connector&centreon_engine_lib=%2Fusr%2Flib%2Fcentreon-engine&centreonplugins=%2Fusr%2Flib%2Fcentreon%2Fplugins%2F"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/step.php?action=nextStep"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/process/process_step4.php" \
-        --data "centreonbroker_etc=%2Fetc%2Fcentreon-broker&centreonbroker_cbmod=%2Fusr%2Flib%2Fnagios%2Fcbmod.so&centreonbroker_log=%2Fvar%2Flog%2Fcentreon-broker&centreonbroker_varlib=%2Fvar%2Flib%2Fcentreon-broker&centreonbroker_lib=%2Fusr%2Fshare%2Fcentreon%2Flib%2Fcentreon-broker"
+        --data "centreonbroker_etc=%2Fetc%2Fcentreon-broker&centreonbroker_cbmod=%2Fusr%2Flib64%2Fnagios%2Fcbmod.so&centreonbroker_log=%2Fvar%2Flog%2Fcentreon-broker&centreonbroker_varlib=%2Fvar%2Flib%2Fcentreon-broker&centreonbroker_lib=%2Fusr%2Fshare%2Fcentreon%2Flib%2Fcentreon-broker"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/step.php?action=nextStep"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/process/process_step5.php" \
         --data "admin_password=${CENTREON_ADMIN_PASSWD}&confirm_password=${CENTREON_ADMIN_PASSWD}&firstname=${CENTREON_ADMIN_NAME}&lastname=${CENTREON_ADMIN_NAME}&email=${CENTREON_ADMIN_EMAIL}"
@@ -89,7 +89,7 @@ InstallDbCentreon() {
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/process/partitionTables.php" -X POST
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/step.php?action=nextStep"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/process/process_step8.php" \
-        --data "modules%5B%5D=centreon-license-manager&modules%5B%5D=centreon-pp-manager"
+        --data "modules%5B%5D=centreon-license-manager&modules%5B%5D=centreon-pp-manager&modules%5B%5D=centreon-autodiscovery-server"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/step.php?action=nextStep"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/process/process_step9.php" \
         --data "send_statistics=1"
