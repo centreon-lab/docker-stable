@@ -297,6 +297,7 @@ touch /var/log/centreon/login.log
 find /etc/centreon* -type d | xargs chmod -v 0775
 find /etc/centreon* -type f | xargs chmod -v 0664
 chown -v centreon:apache /var/log/centreon
+chown -vR centreon:centreon /etc/centreon
 chmod -v 0775 /var/log/centreon
 chown -v centreon-engine:centreon-engine /var/log/centreon-engine
 chown -v centreon-broker:centreon-broker /var/log/centreon-broker

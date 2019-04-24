@@ -22,6 +22,7 @@ RUN yum install -y \
   && yum-config-manager -q --enable centreon-canary-noarch \
   && yum install -y \
     centreon-base-config-centreon-engine \
+    centreon-plugin-Operatingsystems-Linux-Snmp \
   && wget -O - https://bootstrap.pypa.io/get-pip.py | python - \
   && pip install supervisor requests \
   && echo_supervisord_conf > /etc/supervisord.conf \
