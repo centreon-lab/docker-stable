@@ -18,8 +18,6 @@ RUN yum install -y \
     cronie \
   && wget http://yum.centreon.com/standard/19.04/el7/stable/noarch/RPMS/${CENTREON_REPO_VERSION} -O /tmp/${CENTREON_REPO_VERSION} \
   && yum install --nogpgcheck -y /tmp/${CENTREON_REPO_VERSION} \
-  && yum-config-manager -q --enable centreon-canary \
-  && yum-config-manager -q --enable centreon-canary-noarch \
   && yum install -y \
     centreon-base-config-centreon-engine \
     centreon-plugin-Operatingsystems-Linux-Snmp \

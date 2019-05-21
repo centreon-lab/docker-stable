@@ -20,7 +20,7 @@ services:
       - ./ssh/id_rsa:/var/spool/centreon/.ssh/id_rsa
       - ./licenses:/etc/centreon/license.d
   centreon-db:
-    image: mariadb:10.3
+    image: mariadb:10.1
     command: mysqld --open-files-limit=32000
     environment:
       MYSQL_ROOT_PASSWORD: "change123"
