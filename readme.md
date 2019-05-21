@@ -1,4 +1,4 @@
-Docker using canary repository
+Docker using stable repository
 ==============================
 
 Prerequisites:
