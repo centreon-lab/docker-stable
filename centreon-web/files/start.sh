@@ -213,7 +213,7 @@ fi
 
 # SSH Configuration
 if [ ! -f "/var/spool/centreon/.ssh/known_hosts" ]; then
-    touch /var/spool/centreon/.ssh/known_hosts
+    su - centreon -c "touch /var/spool/centreon/.ssh/known_hosts"
 fi
 if ! grep "StrictHostKeyChecking no" /var/spool/centreon/.ssh/config; then
     su - centreon -c "cat <<EOF > .ssh/config
