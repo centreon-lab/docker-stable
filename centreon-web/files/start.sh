@@ -102,161 +102,6 @@ InstallDbCentreon() {
     MakeConf
 }
 
-installModules() {
-
-    # After Centreon configuration, install modules
-    if [ ! "$(rpm -aq | grep centreon-map-release)" ]; then
-        MYSQL_HOST_CLIENT=$( \
-            echo "SELECT host FROM information_schema.processlist WHERE ID=connection_id();" \
-            | mysql -u root --password="${MYSQL_ROOT_PASSWORD}" -h ${MYSQL_HOST} \
-            | sed 1d | cut -f1 -d":" \
-        )
-        echo "CREATE USER 'centreon_map'@'${MYSQL_HOST_CLIENT}' IDENTIFIED BY '${MYSQL_PASSWD}';" \
-            | mysql -u root --password="${MYSQL_ROOT_PASSWORD}" -h ${MYSQL_HOST}
-        echo "GRANT SELECT ON centreon_storage.* TO 'centreon_map'@'${MYSQL_HOST_CLIENT}';" \
-            | mysql -u root --password="${MYSQL_ROOT_PASSWORD}" -h ${MYSQL_HOST}
-        echo "GRANT SELECT, INSERT ON centreon.* TO 'centreon_map'@'${MYSQL_HOST_CLIENT}';" \
-            | mysql -u root --password="${MYSQL_ROOT_PASSWORD}" -h ${MYSQL_HOST}
-    
-        yum install -y http://yum.centreon.com/centreon-map/bfcfef6922ae08bd2b641324188d8a5f/19.04/el7/stable/noarch/RPMS/centreon-map-release-19.04-1.el7.centos.noarch.rpm \
-            && yum-config-manager -y -q --disable centreon-map-stable \
-            && yum-config-manager -y -q --enable centreon-map-canary-noarch \
-            && yum install -y centreon-map-server expect
-        cd /etc/centreon-studio
-        find /etc/centreon-studio -type f -name \*.sh | xargs chmod -v +x
-        export PATH="$PATH:/etc/centreon-studio"
-        sed -i \
-            -e "s/##CENTREON_ADMIN_PASSWORD##/${CENTREON_ADMIN_PASSWD}/g" \
-            -e "s/##CENTREON_HOST_DATABASE##/${MYSQL_HOST}/g" \
-            -e "s/##CENTREON_USER_DB_PASSWORD##/${MYSQL_PASSWD}/g" \
-            -e "s/##MYSQL_ROOT_PASSWORD##/${MYSQL_ROOT_PASSWORD}/g" \
-            /tmp/configure-map.exp
-        #/tmp/./configure-map.exp
-    fi
-    if [ ! "$(rpm -aq | grep centreon-bam-release)" ]; then
-        yum install -y http://yum.centreon.com/centreon-bam/d4e1d7d3e888f596674453d1f20ff6d3/19.04/el7/stable/noarch/RPMS/centreon-bam-release-19.04-1.el7.centos.noarch.rpm \
-        && yum-config-manager -y -q --disable centreon-bam-stable \
-        && yum-config-manager -y -q --enable centreon-bam-canary-noarch \
-        && yum install -y centreon-bam-server
-    fi
-    if [ ! "$(rpm -aq | grep centreon-mbi-release)" ]; then
-        yum install -y http://yum.centreon.com/centreon-mbi/5e0524c1c4773a938c44139ea9d8b4d7/19.04/el7/stable/noarch/RPMS/centreon-mbi-release-19.04-1.el7.centos.noarch.rpm \
-        && yum-config-manager -y -q --disable centreon-mbi-stable \
-        && yum-config-manager -y -q --enable centreon-mbi-canary-noarch \
-        && yum install -y centreon-bi-server
-    fi
-
-    echo "Starting Apache to apply configuration ..."
-    /opt/rh/httpd24/root/usr/sbin/httpd-scl-wrapper -DFOREGROUND &2> /dev/null
-    PID_HTTPD=$!
-    echo "Starting PHP-FPM to apply configuration ..."
-    /opt/rh/rh-php71/root/usr/sbin/php-fpm -F &2> /dev/null
-    PID_PHPFPM=$!
-
-    sleep 5 # waiting start httpd process
-
-    CENTREON_HOST="http://localhost"
-    CURL_CMD="curl -q -o /dev/null"
-    API_TOKEN=$(curl -q -d "username=admin&password=${CENTREON_ADMIN_PASSWD}" \
-        "${CENTREON_HOST}/centreon/api/index.php?action=authenticate" \
-        | cut -f2 -d":" | sed -e "s/\"//g" -e "s/}//"
-    )
-
-    ${CURL_CMD} -X POST \
-        -H "Content-Type: application/json" \
-        -H "centreon-auth-token: ${API_TOKEN}"\
-        "${CENTREON_HOST}/centreon/api/index.php?object=centreon_module&action=install&id=centreon-bam-server&type=module"
-    ${CURL_CMD} -X POST \
-        -H "Content-Type: application/json" \
-        -H "centreon-auth-token: ${API_TOKEN}"\
-        "${CENTREON_HOST}/centreon/api/index.php?object=centreon_module&action=install&id=centreon-bi-server&type=module"
-    ${CURL_CMD} -X POST \
-        -H "Content-Type: application/json" \
-        -H "centreon-auth-token: ${API_TOKEN}"\
-        "${CENTREON_HOST}/centreon/api/index.php?object=centreon_module&action=install&id=bam-ba-listing&type=widget"
-    ${CURL_CMD} -X POST \
-        -H "Content-Type: application/json" \
-        -H "centreon-auth-token: ${API_TOKEN}"\
-        "${CENTREON_HOST}/centreon/api/index.php?object=centreon_module&action=install&id=mbi-ba-mtbf-mtrs&type=widget"
-    ${CURL_CMD} -X POST \
-        -H "Content-Type: application/json" \
-        -H "centreon-auth-token: ${API_TOKEN}"\
-        "${CENTREON_HOST}/centreon/api/index.php?object=centreon_module&action=install&id=mbi-ba-availability-graph-day&type=widget"
-    ${CURL_CMD} -X POST \
-        -H "Content-Type: application/json" \
-        -H "centreon-auth-token: ${API_TOKEN}"\
-        "${CENTREON_HOST}/centreon/api/index.php?object=centreon_module&action=install&id=mbi-ba-availability-gauge&type=widget"
-    ${CURL_CMD} -X POST \
-        -H "Content-Type: application/json" \
-        -H "centreon-auth-token: ${API_TOKEN}"\
-        "${CENTREON_HOST}/centreon/api/index.php?object=centreon_module&action=install&id=mbi-ba-availability-graph-month&type=widget"
-    ${CURL_CMD} -X POST \
-        -H "Content-Type: application/json" \
-        -H "centreon-auth-token: ${API_TOKEN}"\
-        "${CENTREON_HOST}/centreon/api/index.php?object=centreon_module&action=install&id=mbi-bv-availability-graph-month&type=widget"
-    ${CURL_CMD} -X POST \
-        -H "Content-Type: application/json" \
-        -H "centreon-auth-token: ${API_TOKEN}"\
-        "${CENTREON_HOST}/centreon/api/index.php?object=centreon_module&action=install&id=mbi-hgs-hc-by-host-mtbf-mtrs&type=widget"
-    ${CURL_CMD} -X POST \
-        -H "Content-Type: application/json" \
-        -H "centreon-auth-token: ${API_TOKEN}"\
-        "${CENTREON_HOST}/centreon/api/index.php?object=centreon_module&action=install&id=mbi-hg-availability-by-host-graph-day&type=widget"
-    ${CURL_CMD} -X POST \
-        -H "Content-Type: application/json" \
-        -H "centreon-auth-token: ${API_TOKEN}"\
-        "${CENTREON_HOST}/centreon/api/index.php?object=centreon_module&action=install&id=mbi-hg-availability-by-hc-graph-month&type=widget"
-    ${CURL_CMD} -X POST \
-        -H "Content-Type: application/json" \
-        -H "centreon-auth-token: ${API_TOKEN}"\
-        "${CENTREON_HOST}/centreon/api/index.php?object=centreon_module&action=install&id=mbi-hgs-availability-by-hg-graph-month&type=widget"
-    ${CURL_CMD} -X POST \
-        -H "Content-Type: application/json" \
-        -H "centreon-auth-token: ${API_TOKEN}"\
-        "${CENTREON_HOST}/centreon/api/index.php?object=centreon_module&action=install&id=mbi-hgs-performances-Top-X&type=widget"
-    ${CURL_CMD} -X POST \
-        -H "Content-Type: application/json" \
-        -H "centreon-auth-token: ${API_TOKEN}"\
-        "${CENTREON_HOST}/centreon/api/index.php?object=centreon_module&action=install&id=mbi-hgs-hcs-scs-metric-performance-day&type=widget"
-    ${CURL_CMD} -X POST \
-        -H "Content-Type: application/json" \
-        -H "centreon-auth-token: ${API_TOKEN}"\
-        "${CENTREON_HOST}/centreon/api/index.php?object=centreon_module&action=install&id=mbi-metric-capacity-planning&type=widget"
-    ${CURL_CMD} -X POST \
-        -H "Content-Type: application/json" \
-        -H "centreon-auth-token: ${API_TOKEN}"\
-        "${CENTREON_HOST}/centreon/api/index.php?object=centreon_module&action=install&id=mbi-metric-capacity-planning&type=widget"
-    ${CURL_CMD} -X POST \
-        -H "Content-Type: application/json" \
-        -H "centreon-auth-token: ${API_TOKEN}"\
-        "${CENTREON_HOST}/centreon/api/index.php?object=centreon_module&action=install&id=mbi-hgs-hc-by-service-mtbf-mtrs&type=widget"
-    ${CURL_CMD} -X POST \
-        -H "Content-Type: application/json" \
-        -H "centreon-auth-token: ${API_TOKEN}"\
-        "${CENTREON_HOST}/centreon/api/index.php?object=centreon_module&action=install&id=mbi-storage-list-near-saturation&type=widget"
-    ${CURL_CMD} -X POST \
-        -H "Content-Type: application/json" \
-        -H "centreon-auth-token: ${API_TOKEN}"\
-        "${CENTREON_HOST}/centreon/api/index.php?object=centreon_module&action=install&id=mbi-storage-list-near-saturation&type=widget"
-    ${CURL_CMD} -X POST \
-        -H "Content-Type: application/json" \
-        -H "centreon-auth-token: ${API_TOKEN}"\
-        "${CENTREON_HOST}/centreon/api/index.php?object=centreon_module&action=install&id=mbi-hgs-hc-by-service-mtbf-mtrs&type=widget"
-    ${CURL_CMD} -X POST \
-        -H "Content-Type: application/json" \
-        -H "centreon-auth-token: ${API_TOKEN}"\
-        "${CENTREON_HOST}/centreon/api/index.php?object=centreon_module&action=install&id=mbi-storage-list-near-saturation&type=widget"
-    ${CURL_CMD} -X POST \
-        -H "Content-Type: application/json" \
-        -H "centreon-auth-token: ${API_TOKEN}"\
-        "${CENTREON_HOST}/centreon/api/index.php?object=centreon_module&action=install&id=mbi-typical-performance-day&type=widget"
-
-    echo "Kill Apache and PHP-FPM ..."
-    kill $PID_HTTPD
-    kill $PID_PHPFPM
-}
-
-
 # Test connection with Mysql
 echo "Testing connection with database."
 echo "Waiting Mysql server up to testing connection (15 secs) ..."
@@ -267,12 +112,10 @@ if [ "$(testMySQL)" -eq 0 ]; then
     echo -n "Connection exist, preparing configuration ..."
     MakeConf
     chown -R apache:centreon /etc/centreon
-    installModules
     echo "done"
 else
     echo "Connection exist, but need create the initial database ..."
     InstallDbCentreon
-    installModules
     echo "done"
 fi
 
