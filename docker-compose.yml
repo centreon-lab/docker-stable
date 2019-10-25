@@ -2,6 +2,7 @@ version: '3'
 
 services:
   centreon-web:
+    hostname: centreon-web
     build: ./centreon-web
     depends_on:
       - centreon-db
@@ -18,9 +19,9 @@ services:
       - "8080:80"
     volumes:
       - ./centreon-conf:/etc/centreon
-      - ./ssh/id_rsa:/var/spool/centreon/.ssh/id_rsa
-      - ./licenses:/etc/centreon/license.d
+      - ./centreon-ssh:/var/spool/centreon/.ssh
   centreon-db:
+    hostname: centreon-db
     image: mariadb:10.1
     command: mysqld --open-files-limit=32000
     volumes:

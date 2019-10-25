@@ -214,18 +214,24 @@ fi
 # SSH Configuration
 if [ ! -f "/var/spool/centreon/.ssh/known_hosts" ]; then
     touch /var/spool/centreon/.ssh/known_hosts
-fi 
-chmod -R 700 /var/spool/centreon/.ssh
-chown -R centreon:centreon /var/spool/centreon/.ssh
-if ! grep "StrictHostKeyChecking no" /etc/ssh/ssh_config; then
-    echo "\tStrictHostKeyChecking no" >> /etc/ssh/ssh_config
 fi
-
-echo "Centreon Web ready !"
+if ! grep "StrictHostKeyChecking no" /var/spool/centreon/.ssh/config; then
+    su - centreon -c "cat <<EOF > .ssh/config
+Compression yes
+Host *
+    StrictHostKeyChecking no
+EOF"
+fi
+if [ ! -f "/var/spool/centreon/.ssh/id_rsa.pub" ]; then
+    su - centreon -c "ssh-keygen -t rsa -N \"\" -f ~/.ssh/id_rsa"
+fi
+su - centreon -c "chmod 0700 .ssh && chmod 0600 .ssh/*"
 
 if [ -d "/usr/share/centreon/www/install" ]; then
     rm -rf /usr/share/centreon/www/install
 fi
 touch /var/log/centreon/login.log
+
+echo "Centreon Web ready !"
 
 su - root -c "/usr/bin/supervisord -n -e debug -c /etc/supervisord.conf"
