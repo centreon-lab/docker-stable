@@ -115,22 +115,19 @@ function initialConfiguration() {
 
     # Add server and set snmp configuration
     centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o HG -a add -v "Linux;Linux servers"
-    centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o HOST -a ADD -v "centreon-central;Centreon Central;127.0.0.1;App-Monitoring-Centreon-Central-custom|App-Monitoring-Centreon-Database-custom;central;Linux"
-    centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o HOST -a setmacro -v "centreon-central;MYSQLPASSWORD;${MYSQL_PASSWD}"
-    centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o HOST -a setmacro -v "centreon-central;MYSQLHOST;${MYSQL_HOST}"
+    centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o HOST -a ADD -v "centreon-central;Centreon Central;127.0.0.1;App-Monitoring-Centreon-Central-custom;central;Linux"
+    centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o HOST -a ADD -v "centreon-db;Centreon Central;${MYSQL_HOST};App-Monitoring-Centreon-Database-custom;central;Linux"
+    centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o HOST -a setmacro -v "centreon-db;MYSQLPASSWORD;${MYSQL_PASSWD}"
     centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o HOST -a setparam -v "centreon-central;snmp_community;public"
     centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o HOST -a setparam -v "centreon-central;snmp_version;2c"
     centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o HOST -a applytpl -v "centreon-central"
+    centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o HOST -a applytpl -v "centreon-db"
 
     # add a plugin to monitor each ethernet interface
     ip -o link show | awk -F': ' '{print $2}' | grep -v 'lo' | cut -f1 -d'@' | while read IFNAME; do
         centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o SERVICE -a add -v "centreon-central;Interface-${IFNAME};OS-Linux-Traffic-Generic-Name-SNMP"
         centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o SERVICE -a setmacro -v "centreon-central;Interface-${IFNAME};INTERFACENAME;${IFNAME}"
     done
-
-    # add mount point from partition of system to monitor
-    centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o SERVICE -a add -v "centreon-central;Mountpoint-root;OS-Linux-Disk-Generic-Name-SNMP"
-    centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o SERVICE -a setmacro -v "centreon-central;Mountpoint-root;DISKNAME;/"
 
     # Generate and move configuration to engine
     centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -a POLLERGENERATE -v 1
