@@ -17,22 +17,13 @@ services:
     ports:
       - "8080:80"
     volumes:
+      - ./centreon-conf:/etc/centreon
       - ./ssh/id_rsa:/var/spool/centreon/.ssh/id_rsa
       - ./licenses:/etc/centreon/license.d
   centreon-db:
     image: mariadb:10.1
     command: mysqld --open-files-limit=32000
+    volumes:
+      - ./centreon-db:/var/lib/mysql
     environment:
       MYSQL_ROOT_PASSWORD: "change123"
-  centreon-engine-1:
-    build: ./centreon-engine
-    depends_on:
-      - centreon-web
-  centreon-engine-2:
-    build: ./centreon-engine
-    depends_on:
-      - centreon-web
-  centreon-engine-3:
-    build: ./centreon-engine
-    depends_on:
-      - centreon-web

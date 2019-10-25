@@ -18,49 +18,129 @@ if [ -z "$MYSQL_ROOT_PASSWORD" ]; then
     echo "Need define the MYSQL_ROOT_PASSWORD variable !"
     exit 1;
 fi
-if ! grep -q "/var/spool/centreon/.ssh/id_rsa" /proc/mounts; then
-    echo "Need mount a private key to use with SSH !"
-    echo "Use the argument (example): \"--mount type=bind,source=\$(pwd)/ssh/id_rsa,target=/var/spool/centreon/.ssh/id_rsa\""
-    exit 1;
-fi
-
-MakeConf() {
-    mv /tmp/conf.pm /etc/centreon/
-    mv /tmp/centreon.conf.php /etc/centreon/
-    for SFILE in \
-        "/etc/centreon/conf.pm" \
-        "/etc/centreon/centreon.conf.php"
-    do
-        sed -i \
-        -e "s/--DBUSER--/${MYSQL_USER}/g" \
-        -e "s/--DBPASS--/${MYSQL_PASSWD}/g" \
-        -e "s/--ADDRESS--/${MYSQL_HOST}/g" \
-        -e "s/--DBPORT--/${MYSQL_PORT}/g" \
-        $SFILE
-    done
-}
 
 testMySQL() {
-    sleep 15
-    if /opt/rh/rh-php71/root/usr/bin/php -r 'try { $db = new PDO("mysql:host=".getenv("MYSQL_HOST"), "root", getenv("MYSQL_ROOT_PASSWORD")); exit(0); } catch (Exception $e) { exit(1); }'; then
-        /opt/rh/rh-php71/root/usr/bin/php -r 'try { $db = new PDO("mysql:dbname=centreon;host=".getenv("MYSQL_HOST"), "root", getenv("MYSQL_ROOT_PASSWORD")); exit(0); } catch (Exception $e) { exit(1); }'
-        echo $?
+    TIMEOUT=300
+    NOW=$(date +%s)
+    TEST_CONNECTION=1
+    while [ $TEST_CONNECTION -ne 0 ]; do
+        if [ $(expr $(date +%s) - $NOW) -gt $TIMEOUT ]; then
+            TEST_CONNECTION=100
+            break
+        fi
+        TEST_CONNECTION=$(/opt/rh/rh-php72/root/usr/bin/php -r 'try { $db = new PDO("mysql:host=".getenv("MYSQL_HOST"), "root", getenv("MYSQL_ROOT_PASSWORD")); echo 0; } catch (Exception $e) { echo 1; }')
+        sleep 5
+    done
+    if [ $TEST_CONNECTION -eq 0 ]; then
+        echo $(/opt/rh/rh-php72/root/usr/bin/php -r 'try { $db = new PDO("mysql:dbname=centreon;host=".getenv("MYSQL_HOST"), "root", getenv("MYSQL_ROOT_PASSWORD")); echo 0; } catch (Exception $e) { echo 1; }')
     else
-        echo "You need a valid connection to your MySQL server !"
-        exit 1;
+        echo 100
     fi
 }
 
+function installPlugins() {
+
+    # Install JQ tool (https://stedolan.github.io/jq/)
+    # to help manage json output in shell
+    curl -o /usr/sbin/jq -q -L -g https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
+    chmod +x /usr/sbin/jq
+
+    SLUGS=$(curl -q -L -g 'https://api.imp.centreon.com/api/pluginpack/pluginpack?sort=catalog_level&by=asc&page[number]=1&page[size]=20')
+
+    PLUGINS=(
+      base-generic
+      applications-databases-mysql
+      operatingsystems-linux-snmp
+      applications-monitoring-centreon-database
+      applications-monitoring-centreon-central
+    )
+
+    CENTREON_HOST="http://localhost"
+    CURL_CMD="curl "
+
+    for PLUGIN in "${PLUGINS[@]}"; do
+        JSON_PLUGIN="{\"slug\": \"${PLUGIN}\", \"version\": $(echo $SLUGS | jq ".data[].attributes | select(.slug | contains(\"${PLUGIN}\")).version"), \"action\": \"install\"}"
+        STATUS=0
+        while [ $STATUS -eq 0 ]; do
+            API_TOKEN=$(curl -q -d "username=admin&password=${CENTREON_ADMIN_PASSWD}" \
+                "${CENTREON_HOST}/centreon/api/index.php?action=authenticate" \
+                | cut -f2 -d":" | sed -e "s/\"//g" -e "s/}//"
+            )
+            CURL_OUTPUT=$(${CURL_CMD} -X POST \
+                -H "Content-Type: application/json" \
+                -H "centreon-auth-token: $(read <<<"$API_TOKEN";echo "$REPLY")" \
+                -d "{\"pluginpack\":[${JSON_PLUGIN}]}" \
+                "${CENTREON_HOST}/centreon/api/index.php?object=centreon_pp_manager_pluginpack&action=installupdate"
+            )
+            if ! [ $(echo $CURL_OUTPUT | grep "Forbidden") ]; then
+                STATUS=1
+            fi
+        done
+    done
+}
+
+function installWidgets() {
+    WIDGETS=(
+        engine-status
+        global-health
+        graph-monitoring
+        grid-map
+        host-monitoring
+        hostgroup-monitoring
+        httploader
+        live-top10-cpu-usage
+        live-top10-memory-usage
+        service-monitoring
+        servicegroup-monitoring
+        tactical-overview
+    )
+
+    CENTREON_HOST="http://localhost"
+    CURL_CMD="curl -q -o /dev/null"
+    API_TOKEN=$(curl -q -d "username=admin&password=${CENTREON_ADMIN_PASSWD}" \
+        "${CENTREON_HOST}/centreon/api/index.php?action=authenticate" \
+        | cut -f2 -d":" | sed -e "s/\"//g" -e "s/}//"
+    )
+
+    for WIDGET in "${WIDGETS[@]}"; do
+        # Configure widget in Centreon
+        ${CURL_CMD} -X POST \
+            -H "Content-Type: application/json" \
+            -H "centreon-auth-token: $(read <<<"$API_TOKEN";echo "$REPLY")" \
+            "${CENTREON_HOST}/centreon/api/index.php?object=centreon_module&action=install&id=${WIDGET}&type=widget"
+    done
+}
+
+function initialConfiguration() {
+
+    # Add server and set snmp configuration
+    centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o HG -a add -v "Linux;Linux servers"
+    centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o HOST -a ADD -v "centreon-central;Centreon Central;127.0.0.1;App-Monitoring-Centreon-Central-custom|App-Monitoring-Centreon-Database-custom;central;Linux"
+    centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o HOST -a setmacro -v "centreon-central;MYSQLPASSWORD;${MYSQL_PASSWD}"
+    centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o HOST -a setparam -v "centreon-central;snmp_community;public"
+    centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o HOST -a setparam -v "centreon-central;snmp_version;2c"
+    centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o HOST -a applytpl -v "centreon-central"
+
+    # add a plugin to monitor each ethernet interface
+    ip -o link show | awk -F': ' '{print $2}' | grep -v 'lo' | cut -f1 -d'@' | while read IFNAME; do
+        centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o SERVICE -a add -v "centreon-central;Interface-${IFNAME};OS-Linux-Traffic-Generic-Name-SNMP"
+        centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o SERVICE -a setmacro -v "centreon-central;Interface-${IFNAME};INTERFACENAME;${IFNAME}"
+    done
+
+    # add mount point from partition of system to monitor
+    centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o SERVICE -a add -v "centreon-central;Mountpoint-root;OS-Linux-Disk-Generic-Name-SNMP"
+    centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o SERVICE -a setmacro -v "centreon-central;Mountpoint-root;DISKNAME;/"
+
+    # Generate and move configuration to engine
+    centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -a POLLERGENERATE -v 1
+    chown -R apache:apache /var/cache/centreon/config/engine/*
+    chown -R apache:apache /var/cache/centreon/config/broker/*
+    centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -a CFGMOVE -v 1
+    chown -R apache:apache /etc/centreon-engine/*
+    chown -R apache:apache /etc/centreon-broker/*
+}
+
 InstallDbCentreon() {
-    echo "Starting Apache to apply configuration ..."
-    /opt/rh/httpd24/root/usr/sbin/httpd-scl-wrapper -DFOREGROUND &2> /dev/null
-    PID_HTTPD=$!
-    echo "Starting PHP-FPM to apply configuration ..."
-    /opt/rh/rh-php71/root/usr/sbin/php-fpm -F &2> /dev/null
-    PID_PHPFPM=$!
-
-    sleep 5 # waiting start httpd process
-
     CENTREON_HOST="http://localhost"
     COOKIE_FILE="/tmp/install.cookie"
     CURL_CMD="curl -q -b ${COOKIE_FILE}"
@@ -79,7 +159,7 @@ InstallDbCentreon() {
         --data "admin_password=${CENTREON_ADMIN_PASSWD}&confirm_password=${CENTREON_ADMIN_PASSWD}&firstname=${CENTREON_ADMIN_NAME}&lastname=${CENTREON_ADMIN_NAME}&email=${CENTREON_ADMIN_EMAIL}"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/step.php?action=nextStep"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/process/process_step6.php" \
-        --data "address=${MYSQL_HOST}&port=${MYSQL_PORT}&root_password=${MYSQL_ROOT_PASSWORD}&db_configuration=centreon&db_storage=centreon_storage&db_user=${MYSQL_USER}&db_password=${MYSQL_PASSWD}&db_password_confirm=${MYSQL_PASSWD}"
+        --data "address=${MYSQL_HOST}&port=${MYSQL_PORT}&root_user=root&root_password=${MYSQL_ROOT_PASSWORD}&db_configuration=centreon&db_storage=centreon_storage&db_user=${MYSQL_USER}&db_password=${MYSQL_PASSWD}&db_password_confirm=${MYSQL_PASSWD}"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/step.php?action=nextStep"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/process/configFileSetup.php" -X POST
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/process/installConfigurationDb.php" -X POST
@@ -94,28 +174,34 @@ InstallDbCentreon() {
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/process/process_step9.php" \
         --data "send_statistics=1"
 
-    echo "Kill Apache and PHP-FPM ..."
-    kill $PID_HTTPD
-    kill $PID_PHPFPM
-    echo "imprimir conf.pm: "
-    cat /etc/centreon/conf.pm
-    MakeConf
 }
 
 # Test connection with Mysql
 echo "Testing connection with database."
-echo "Waiting Mysql server up to testing connection (15 secs) ..."
-if [ "$(testMySQL)" -eq 0 ]; then
-    if [ ! -d "/etc/centreon" ]; then
-        mkdir -p /etc/centreon
-    fi
+echo "Waiting Mysql server up to testing connection ..."
+TEST_MYSQL=$(testMySQL)
+if [ $TEST_MYSQL -eq 100 ]; then
+    echo "You need a valid connection to your MySQL server !"
+    exit 1;
+elif [ $TEST_MYSQL -eq 0 ]; then
     echo -n "Connection exist, preparing configuration ..."
-    MakeConf
-    chown -R apache:centreon /etc/centreon
     echo "done"
 else
     echo "Connection exist, but need create the initial database ..."
+    echo "Starting Apache to apply configuration ..."
+    /opt/rh/httpd24/root/usr/sbin/httpd-scl-wrapper -DFOREGROUND &2> /dev/null
+    PID_HTTPD=$!
+    echo "Starting PHP-FPM to apply configuration ..."
+    /opt/rh/rh-php72/root/usr/sbin/php-fpm -F &2> /dev/null
+    PID_PHPFPM=$!
+    sleep 5 # waiting start httpd process
     InstallDbCentreon
+    installWidgets
+    installPlugins
+    initialConfiguration
+    echo "Kill Apache and PHP-FPM ..."
+    kill $PID_HTTPD
+    kill $PID_PHPFPM
     echo "done"
 fi
 
@@ -135,16 +221,5 @@ if [ -d "/usr/share/centreon/www/install" ]; then
     rm -rf /usr/share/centreon/www/install
 fi
 touch /var/log/centreon/login.log
-
-# Fix permissions:
-find /etc/centreon* -type d | xargs chmod -v 0775
-find /etc/centreon* -type f | xargs chmod -v 0664
-chown -v centreon:apache /var/log/centreon
-chown -vR centreon:centreon /etc/centreon
-chmod -v 0775 /var/log/centreon
-chown -v centreon-engine:centreon-engine /var/log/centreon-engine
-chown -v centreon-broker:centreon-broker /var/log/centreon-broker
-chown -v centreon:centreon /var/lib/centreon/metrics
-chown -v centreon:centreon /var/lib/centreon/status
 
 su - root -c "/usr/bin/supervisord -n -e debug -c /etc/supervisord.conf"
