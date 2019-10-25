@@ -123,6 +123,14 @@ function initialConfiguration() {
     centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o HOST -a applytpl -v "centreon-central"
     centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o HOST -a applytpl -v "centreon-db"
 
+    # Disable some services because Docker
+    centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o SERVICE -a setparam -v "centreon-central;proc-ntpd;activate;0"
+    centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o SERVICE -a setparam -v "centreon-central;proc-sshd;activate;0"
+    centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o SERVICE -a setparam -v "centreon-db;Cpu;activate;0"
+    centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o SERVICE -a setparam -v "centreon-db;Load;activate;0"
+    centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o SERVICE -a setparam -v "centreon-db;Memory;activate;0"
+    centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o SERVICE -a setparam -v "centreon-db;Swap;activate;0"
+
     # add a plugin to monitor each ethernet interface
     ip -o link show | awk -F': ' '{print $2}' | grep -v 'lo' | cut -f1 -d'@' | while read IFNAME; do
         centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o SERVICE -a add -v "centreon-central;Interface-${IFNAME};OS-Linux-Traffic-Generic-Name-SNMP"

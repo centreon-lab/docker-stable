@@ -15,7 +15,6 @@ RUN yum install -y \
     rsyslog \
     cronie \
     net-snmp \
-    ntp \
   && yum install --nogpgcheck -y http://yum.centreon.com/standard/19.10/el7/stable/noarch/RPMS/${CENTREON_REPO_VERSION} \
   && yum install -y \
     centreon-base-config-centreon-engine \
@@ -40,7 +39,6 @@ COPY files/supervisord/apache-httpd.ini /etc/supervisord.d/
 COPY files/supervisord/postfix.ini /etc/supervisord.d/
 COPY files/supervisord/rsyslog.ini /etc/supervisord.d/
 COPY files/supervisord/snmpd.ini /etc/supervisord.d/
-COPY files/supervisord/ntpd.ini /etc/supervisord.d/
 
 # Add fake init scripts (used by centreon web)
 COPY files/init-fake/centengine /etc/init.d/centengine
