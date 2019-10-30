@@ -1,28 +1,31 @@
 Docker using stable repository
 ==============================
 
+[![asciicast](https://asciinema.org/a/cTjgpRVasB8HNeTyGyK866yhZ.svg)](https://asciinema.org/a/cTjgpRVasB8HNeTyGyK866yhZ)
+
 Prerequisites:
 
 - Docker-compose: <https://docs.docker.com/compose/>
-- [ssh key](#create-a-key-to-use-with-ssh)
-- [License modules](#using-licenses-module)
 
-Using licenses module
----------------------
 
-Create a directory at the root of this repository named `licenses` (or customize it in the `docker-compose.yml` file) and place the license files in this directory. This directory will be automatically mounted on the container in `/etc/centreon/license.d`.
+Persistent data
+---------------
 
-Create a key to use with SSH
-----------------------------
+Some directories is necessary to run a minimum persistent data for Centreon
 
-Create a key using this command:
+- `/etc/centreon`
 
-```bash
-mkdir ssh
-ssh-keygen -t rsa -f ssh/id_rsa
-```
+This directory contains all configuration files used by Centreon, like as database access
 
-Change the file `docker-compose`, in entry `- ./ssh/id_rsa:/var/spool/centreon/.ssh/id_rsa` with you ssh key path.
+- `/var/spool/centreon/.ssh`
+
+This directory holds the SSH access keys, used for Centreon Central server communication with other remote servers. It is created at environment startup
+
+- `/var/lib/mysql`
+
+This directory contains the data from the Mysql database, managed by the MariaDB image.
+
+Mount point location settings are defined in the docker-compose `Dockerfile` file. These are the minimum mount points to maintain the required data persistence.
 
 How to use
 ----------
@@ -37,7 +40,7 @@ To always force build of containers, use the command:
 docker-compose up --build
 ```
 
-For clean all enviorement:
+For clean all environment:
 
 ```bash
 docker-compose down -v --rmi local

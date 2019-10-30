@@ -22,6 +22,8 @@ RUN yum install -y \
   && yum install -y epel-release \
   && yum install -y supervisor \
   && yum remove -y epel-release \
+  && yum clean all \
+  && mv -v /etc/centreon /etc/centreon-tmp \
   && echo "date.timezone = ${TIMEZONE}" > /etc/opt/rh/rh-php72/php.d/php-timezone.ini
 
 # Add postfix-wrapper

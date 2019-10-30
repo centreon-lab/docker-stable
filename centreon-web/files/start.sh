@@ -96,7 +96,7 @@ function installWidgets() {
     )
 
     CENTREON_HOST="http://localhost"
-    CURL_CMD="curl -q -o /dev/null"
+    CURL_CMD="curl -o /dev/null"
     API_TOKEN=$(curl -q -d "username=admin&password=${CENTREON_ADMIN_PASSWD}" \
         "${CENTREON_HOST}/centreon/api/index.php?action=authenticate" \
         | cut -f2 -d":" | sed -e "s/\"//g" -e "s/}//"
@@ -149,17 +149,17 @@ function initialConfiguration() {
 InstallDbCentreon() {
     CENTREON_HOST="http://localhost"
     COOKIE_FILE="/tmp/install.cookie"
-    CURL_CMD="curl -q -b ${COOKIE_FILE}"
+    CURL_CMD="curl -b ${COOKIE_FILE}"
 
-    curl -q -c ${COOKIE_FILE} ${CENTREON_HOST}/centreon/install/install.php
+    ${CURL_CMD} "${CENTREON_HOST}/centreon/install/install.php"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/step.php?action=stepContent"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/step.php?action=nextStep"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/step.php?action=nextStep"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/process/process_step3.php" \
-        --data "install_dir_engine=%2Fusr%2Fshare%2Fcentreon-engine&centreon_engine_stats_binary=%2Fusr%2Fsbin%2Fcentenginestats&monitoring_var_lib=%2Fvar%2Flib%2Fcentreon-engine&centreon_engine_connectors=%2Fusr%2Flib64%2Fcentreon-connector&centreon_engine_lib=%2Fusr%2Flib%2Fcentreon-engine&centreonplugins=%2Fusr%2Flib%2Fcentreon%2Fplugins%2F"
+        --data 'install_dir_engine=%2Fusr%2Fshare%2Fcentreon-engine&centreon_engine_stats_binary=%2Fusr%2Fsbin%2Fcentenginestats&monitoring_var_lib=%2Fvar%2Flib%2Fcentreon-engine&centreon_engine_connectors=%2Fusr%2Flib64%2Fcentreon-connector&centreon_engine_lib=%2Fusr%2Flib64%2Fcentreon-engine&centreonplugins=%2Fusr%2Flib%2Fcentreon%2Fplugins%2F'
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/step.php?action=nextStep"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/process/process_step4.php" \
-        --data "centreonbroker_etc=%2Fetc%2Fcentreon-broker&centreonbroker_cbmod=%2Fusr%2Flib64%2Fnagios%2Fcbmod.so&centreonbroker_log=%2Fvar%2Flog%2Fcentreon-broker&centreonbroker_varlib=%2Fvar%2Flib%2Fcentreon-broker&centreonbroker_lib=%2Fusr%2Fshare%2Fcentreon%2Flib%2Fcentreon-broker"
+        --data 'centreonbroker_etc=%2Fetc%2Fcentreon-broker&centreonbroker_cbmod=%2Fusr%2Flib64%2Fnagios%2Fcbmod.so&centreonbroker_log=%2Fvar%2Flog%2Fcentreon-broker&centreonbroker_varlib=%2Fvar%2Flib%2Fcentreon-broker&centreonbroker_lib=%2Fusr%2Fshare%2Fcentreon%2Flib%2Fcentreon-broker'
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/step.php?action=nextStep"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/process/process_step5.php" \
         --data "admin_password=${CENTREON_ADMIN_PASSWD}&confirm_password=${CENTREON_ADMIN_PASSWD}&firstname=${CENTREON_ADMIN_NAME}&lastname=${CENTREON_ADMIN_NAME}&email=${CENTREON_ADMIN_EMAIL}"
@@ -181,6 +181,21 @@ InstallDbCentreon() {
         --data "send_statistics=1"
 
 }
+
+# Always check and fix permission
+find /etc/centreon-tmp -type f -printf "%P\n" | while read CFILE; do
+    if [ ! -e /etc/centreon/$CFILE ]; then
+        cp -rva /etc/centreon-tmp/$CFILE /etc/centreon/
+    fi
+done
+find /etc/centreon-tmp -type d -printf "%P\n" | sed 1d | while read CDIR; do
+    if [ ! -d /etc/centreon/$CDIR ]; then
+        cp -rva /etc/centreon-tmp/$CDIR /etc/centreon/
+    fi
+done
+rm -rvf /etc/centreon-tmp
+chmod -vR 775 /etc/centreon
+chown -vR centreon:centreon /etc/centreon
 
 # Test connection with Mysql
 echo "Testing connection with database."
@@ -212,20 +227,25 @@ else
 fi
 
 # SSH Configuration
-if [ ! -f "/var/spool/centreon/.ssh/known_hosts" ]; then
-    su - centreon -c "touch /var/spool/centreon/.ssh/known_hosts"
+if [ ! -d /var/spool/centreon/.ssh ]; then
+    mkdir -v /var/spool/centreon/.ssh
+    chown -v centreon:centreon /var/spool/centreon/.ssh
 fi
-if ! grep "StrictHostKeyChecking no" /var/spool/centreon/.ssh/config; then
+if [ ! -f /var/spool/centreon/.ssh/known_hosts ]; then
+    touch -v /var/spool/centreon/.ssh/known_hosts
+    chown -v centreon:centreon /var/spool/centreon/.ssh/known_hosts
+fi
+if [ ! -f /var/spool/centreon/.ssh/config ]; then
     su - centreon -c "cat <<EOF > .ssh/config
 Compression yes
 Host *
     StrictHostKeyChecking no
 EOF"
 fi
-if [ ! -f "/var/spool/centreon/.ssh/id_rsa.pub" ]; then
+if [ ! -f /var/spool/centreon/.ssh/id_rsa.pub ]; then
     su - centreon -c "ssh-keygen -t rsa -N \"\" -f ~/.ssh/id_rsa"
 fi
-su - centreon -c "chmod 0700 .ssh && chmod 0600 .ssh/*"
+su - centreon -c "chmod -v 0700 .ssh && chmod -v 0600 .ssh/*"
 
 if [ -d "/usr/share/centreon/www/install" ]; then
     rm -rf /usr/share/centreon/www/install

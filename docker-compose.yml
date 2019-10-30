@@ -21,7 +21,6 @@ services:
       - ./centreon-conf:/etc/centreon
       - ./centreon-ssh:/var/spool/centreon/.ssh
   centreon-db:
-    hostname: centreon-db
     image: mariadb:10.1
     command: mysqld --open-files-limit=32000
     volumes:
