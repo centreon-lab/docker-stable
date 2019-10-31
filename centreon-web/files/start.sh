@@ -232,9 +232,10 @@ if [ ! -d /var/spool/centreon/.ssh ]; then
     chown -v centreon:centreon /var/spool/centreon/.ssh
 fi
 if [ ! -f /var/spool/centreon/.ssh/known_hosts ]; then
-    touch -v /var/spool/centreon/.ssh/known_hosts
+    touch /var/spool/centreon/.ssh/known_hosts
     chown -v centreon:centreon /var/spool/centreon/.ssh/known_hosts
 fi
+chown -vR centreon:centreon /var/spool/centreon/.ssh
 if [ ! -f /var/spool/centreon/.ssh/config ]; then
     su - centreon -c "cat <<EOF > .ssh/config
 Compression yes
