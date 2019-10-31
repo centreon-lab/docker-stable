@@ -1,7 +1,7 @@
 Docker using stable repository
 ==============================
 
-[![asciicast](https://asciinema.org/a/cTjgpRVasB8HNeTyGyK866yhZ.svg)](https://asciinema.org/a/cTjgpRVasB8HNeTyGyK866yhZ)
+[![asciicast](https://asciinema.org/a/fd3IpIoRupeJbhMCH8Q6Op1PK.svg)](https://asciinema.org/a/fd3IpIoRupeJbhMCH8Q6Op1PK)
 
 Prerequisites:
 
