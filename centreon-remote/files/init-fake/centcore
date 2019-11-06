@@ -1,0 +1,23 @@
+#!/bin/sh
+
+command="$1"
+
+case $command in
+    start)
+        /usr/bin/supervisorctl start centcore
+        ;;
+
+    stop)
+        /usr/bin/supervisorctl stop centcore
+        ;;
+
+    restart|reload)
+        /usr/bin/supervisorctl restart centcore
+        ;;
+
+    status)
+        /usr/bin/supervisorctl status centcore
+        ;;
+esac
+
+exit 0

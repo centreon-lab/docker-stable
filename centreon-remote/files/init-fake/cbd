@@ -1,0 +1,23 @@
+#!/bin/sh
+
+command="$1"
+
+case $command in
+    start)
+        /usr/bin/supervisorctl start cbd
+        ;;
+
+    stop)
+        /usr/bin/supervisorctl stop cbd
+        ;;
+
+    restart|reload)
+        /usr/bin/supervisorctl restart cbd
+        ;;
+
+    status)
+        /usr/bin/supervisorctl status cbd
+        ;;
+esac
+
+exit 0

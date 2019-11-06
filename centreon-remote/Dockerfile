@@ -11,15 +11,19 @@ RUN yum install -y \
     wget \
     sudo \
     openssh-clients \
+    openssh-server \
+    initscripts \
     postfix \
     rsyslog \
     cronie \
     net-snmp \
     nc \
+    bind-utils \
   && yum install --nogpgcheck -y http://yum.centreon.com/standard/19.10/el7/stable/noarch/RPMS/${CENTREON_REPO_VERSION} \
   && yum install -y \
     centreon-base-config-centreon-engine \
     centreon-widget-* \
+  && /usr/sbin/sshd-keygen \
   && yum install -y epel-release \
   && yum install -y supervisor \
   && yum remove -y epel-release \
@@ -42,6 +46,7 @@ COPY files/supervisord/apache-httpd.ini /etc/supervisord.d/
 COPY files/supervisord/postfix.ini /etc/supervisord.d/
 COPY files/supervisord/rsyslog.ini /etc/supervisord.d/
 COPY files/supervisord/snmpd.ini /etc/supervisord.d/
+COPY files/supervisord/sshd.ini /etc/supervisord.d/
 
 # Add fake init scripts (used by centreon web)
 COPY files/init-fake/centengine /etc/init.d/centengine
@@ -54,8 +59,7 @@ RUN chmod +x \
 
 COPY files/start.sh /start.sh
 RUN chmod +x /start.sh
+COPY files/wait-centreon-central.sh /wait-centreon-central.sh
+RUN chmod +x /wait-centreon-central.sh
 
-CMD /start.sh
-
-HEALTHCHECK --interval=60s --timeout=30s --retries=5 \
-CMD /usr/bin/nc -z localhost 5669
+CMD /wait-centreon-central.sh centreon-web /start.sh

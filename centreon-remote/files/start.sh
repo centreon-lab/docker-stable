@@ -6,11 +6,11 @@ if [ -z "$MYSQL_HOST" ]; then
     echo "Need define the MYSQL_HOST variable !"
     exit 1;
 fi
-if [ -z "$CENTRAL_MYSQL_USER" ]; then
+if [ -z "$CR_MYSQL_USER" ]; then
     echo "Need define the MYSQL_USER variable !"
     exit 1;
 fi
-if [ -z "$CENTRAL_MYSQL_PWD" ]; then
+if [ -z "$CR_MYSQL_PWD" ]; then
     echo "Need define the MYSQL_PASSWD variable !"
     exit 1;
 fi
@@ -32,7 +32,7 @@ testMySQL() {
         sleep 5
     done
     if [ $TEST_CONNECTION -eq 0 ]; then
-        echo $(/opt/rh/rh-php72/root/usr/bin/php -r 'try { $db = new PDO("mysql:dbname=".getenv("CENTRAL_DB_CENTREON").";host=".getenv("MYSQL_HOST"), "root", getenv("MYSQL_ROOT_PASSWORD")); echo 0; } catch (Exception $e) { echo 1; }')
+        echo $(/opt/rh/rh-php72/root/usr/bin/php -r 'try { $db = new PDO("mysql:dbname=".getenv("CR_DB_CENTREON").";host=".getenv("MYSQL_HOST"), "root", getenv("MYSQL_ROOT_PASSWORD")); echo 0; } catch (Exception $e) { echo 1; }')
     else
         echo 100
     fi
@@ -117,7 +117,7 @@ function initialConfiguration() {
     centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o HG -a add -v "Linux;Linux servers"
     centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o HOST -a ADD -v "centreon-central;Centreon Central;127.0.0.1;App-Monitoring-Centreon-Central-custom;central;Linux"
     centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o HOST -a ADD -v "centreon-db;Centreon Central;${MYSQL_HOST};App-Monitoring-Centreon-Database-custom;central;Linux"
-    centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o HOST -a setmacro -v "centreon-db;MYSQLPASSWORD;${CENTRAL_MYSQL_PWD}"
+    centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o HOST -a setmacro -v "centreon-db;MYSQLPASSWORD;${CR_MYSQL_PWD}"
     centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o HOST -a setparam -v "centreon-central;snmp_community;public"
     centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o HOST -a setparam -v "centreon-central;snmp_version;2c"
     centreon -u admin -p ${CENTREON_ADMIN_PASSWD} -o HOST -a applytpl -v "centreon-central"
@@ -165,7 +165,7 @@ InstallDbCentreon() {
         --data "admin_password=${CENTREON_ADMIN_PASSWD}&confirm_password=${CENTREON_ADMIN_PASSWD}&firstname=${CENTREON_ADMIN_NAME}&lastname=${CENTREON_ADMIN_NAME}&email=${CENTREON_ADMIN_EMAIL}"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/step.php?action=nextStep"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/process/process_step6.php" \
-        --data "address=${MYSQL_HOST}&port=${MYSQL_PORT}&root_user=root&root_password=${MYSQL_ROOT_PASSWORD}&db_configuration=${CENTRAL_DB_CENTREON}&db_storage=${CENTRAL_DB_STORAGE}&db_user=${CENTRAL_MYSQL_USER}&db_password=${CENTRAL_MYSQL_PWD}&db_password_confirm=${CENTRAL_MYSQL_PWD}"
+        --data "address=${MYSQL_HOST}&port=${MYSQL_PORT}&root_user=root&root_password=${MYSQL_ROOT_PASSWORD}&db_configuration=${CR_DB_CENTREON}&db_storage=${CR_DB_STORAGE}&db_user=${CR_MYSQL_USER}&db_password=${CR_MYSQL_PWD}&db_password_confirm=${CR_MYSQL_PWD}"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/step.php?action=nextStep"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/process/configFileSetup.php" -X POST
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/process/installConfigurationDb.php" -X POST
@@ -180,6 +180,42 @@ InstallDbCentreon() {
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/process/process_step9.php" \
         --data "send_statistics=1"
 
+}
+
+addRemote() {
+    # Temporarly up all services with supervisor
+    /usr/bin/supervisord -n -e debug -c /etc/supervisord.conf &2> /dev/null
+    PID_SUPER=$!
+    sleep 10
+
+    CENTREON_HOST="http://centreon-web"
+    CURL_CMD="curl "
+    CONTAINER_HOST="$(host $(ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}') | cut -d " " -f 5)"
+    CONTAINER_NAME="$(echo $CONTAINER_HOST | cut -d. -f1)"
+    API_TOKEN=$(curl -q -d "username=admin&password=${CENTREON_ADMIN_PASSWD}" \
+        "${CENTREON_HOST}/centreon/api/index.php?action=authenticate" \
+        | cut -f2 -d":" | sed -e "s/\"//g" -e "s/}//"
+    )
+    CURL_OUTPUT=$(${CURL_CMD} -X POST \
+        -H "Content-Type: application/json" \
+        -H "centreon-auth-token: $(read <<<"$API_TOKEN";echo "$REPLY")" \
+        -d "{\"centreon_folder\":\"/centreon/\",\"server_name\":\"${CONTAINER_NAME}\",\"server_ip\":\"http://${CONTAINER_HOST}\",\"db_user\":\"${CR_MYSQL_USER}\",\"db_password\":\"${CR_MYSQL_PWD}\",\"centreon_central_ip\":\"centreon-web\",\"no_check_certificate\":true,\"no_proxy\":true,\"server_type\":\"remote\"}" \
+        "${CENTREON_HOST}/centreon/api/index.php?object=centreon_configuration_remote&action=linkCentreonRemoteServer"
+    )
+    echo $CURL_OUTPUT
+    CURL_OUTPUT=$(${CURL_CMD} -X POST \
+        -H "Content-Type: application/json" \
+        -H "centreon-auth-token: $(read <<<"$API_TOKEN";echo "$REPLY")" \
+        -d "{ \"action\": \"applycfg\", \"values\": \"${CONTAINER_NAME}\" }" \
+        "${CENTREON_HOST}/centreon/api/index.php?action=action&object=centreon_clapi"
+    )
+    echo $CURL_OUTPUT
+
+    # Sleeping to receivied data from central
+    sleep 15
+    # Kill supervisor
+    kill $PID_SUPER
+    sleep 10
 }
 
 # Always check and fix permission
@@ -219,7 +255,7 @@ else
     InstallDbCentreon
     installWidgets
     installPlugins
-    initialConfiguration
+    #initialConfiguration
     echo "Kill Apache and PHP-FPM ..."
     kill $PID_HTTPD
     kill $PID_PHPFPM
@@ -235,17 +271,20 @@ if [ ! -f /var/spool/centreon/.ssh/known_hosts ]; then
     touch /var/spool/centreon/.ssh/known_hosts
     chown -v centreon:centreon /var/spool/centreon/.ssh/known_hosts
 fi
+# Remote copy id_rsa.pub to authorized_keys
+until [ -f /central-ssh/id_rsa.pub ]; do
+    echo "Wait for public ssh key from Centreon Central - sleeping"
+    sleep 5
+done
+cp -v /central-ssh/id_rsa.pub /var/spool/centreon/.ssh/authorized_keys
 chown -vR centreon:centreon /var/spool/centreon/.ssh
 if [ ! -f /var/spool/centreon/.ssh/config ]; then
     su - centreon -c "cat <<EOF > .ssh/config
 Compression yes
-LogLevel ERROR
 Host *
     StrictHostKeyChecking no
 EOF"
 fi
-# Disable strict check on arguments of ssh command
-sed -i 's/StrictHostKeyChecking=yes/StrictHostKeyChecking=no/g' /usr/share/perl5/vendor_perl/centreon/script/centcore.pm
 if [ ! -f /var/spool/centreon/.ssh/id_rsa.pub ]; then
     su - centreon -c "ssh-keygen -t rsa -N \"\" -f ~/.ssh/id_rsa"
 fi
@@ -255,6 +294,9 @@ if [ -d "/usr/share/centreon/www/install" ]; then
     rm -rf /usr/share/centreon/www/install
 fi
 touch /var/log/centreon/login.log
+
+# Add this container as a remote server in Central
+addRemote
 
 echo "Centreon Web ready !"
 

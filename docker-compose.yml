@@ -1,29 +1,86 @@
-version: '3'
+version: '3.4'
+
+x-commonVars: &commonVars
+  MYSQL_HOST: "centreon-db"
+  MYSQL_PORT: "3306"
+  MYSQL_ROOT_PASSWORD: "change123"
+  CENTREON_ADMIN_NAME: "Administrator"
+  CENTREON_ADMIN_EMAIL: "admin@admin.co"
+  CENTREON_ADMIN_PASSWD: "change123"
 
 services:
+
   centreon-web:
-    hostname: centreon-web
     build: ./centreon-web
     depends_on:
       - centreon-db
     environment:
-      MYSQL_HOST: "centreon-db"
-      MYSQL_PORT: "3306"
-      MYSQL_USER: "centreon"
-      MYSQL_PASSWD: "c3ntr30n"
-      MYSQL_ROOT_PASSWORD: "change123"
-      CENTREON_ADMIN_NAME: "Administrator"
-      CENTREON_ADMIN_EMAIL: "admin@admin.co"
-      CENTREON_ADMIN_PASSWD: "change123"
+      <<: *commonVars
+      CENTRAL_MYSQL_USER: "central_centreon"
+      CENTRAL_MYSQL_PWD: "c3ntr30n"
+      CENTRAL_DB_CENTREON: "central_centreon"
+      CENTRAL_DB_STORAGE: "central_centreon_storage"
     ports:
-      - "8080:80"
+      - "10080:80"
     volumes:
-      - ./centreon-conf:/etc/centreon
-      - ./centreon-ssh:/var/spool/centreon/.ssh
+      - ./storage/centreon-conf:/etc/centreon
+      - ./storage/centreon-ssh:/var/spool/centreon/.ssh
+
+  centreon-remote-1:
+    build: ./centreon-remote
+    depends_on:
+      - centreon-web
+    environment:
+      <<: *commonVars
+      CR_MYSQL_USER: "CR1_centreon"
+      CR_MYSQL_PWD: "c3ntr30n"
+      CR_DB_CENTREON: "CR1_centreon"
+      CR_DB_STORAGE: "CR1_centreon_storage"
+    ports:
+      - "10081:80"
+    volumes:
+      - ./storage/CR1-centreon-conf:/etc/centreon
+      - ./storage/CR1-centreon-ssh:/var/spool/centreon/.ssh
+      - ./storage/centreon-ssh:/central-ssh:ro
+
+  centreon-remote-2:
+    build: ./centreon-remote
+    depends_on:
+      - centreon-web
+    environment:
+      <<: *commonVars
+      CR_MYSQL_USER: "CR2_centreon"
+      CR_MYSQL_PWD: "c3ntr30n"
+      CR_DB_CENTREON: "CR2_centreon"
+      CR_DB_STORAGE: "CR2_centreon_storage"
+    ports:
+      - "10082:80"
+    volumes:
+      - ./storage/CR2-centreon-conf:/etc/centreon
+      - ./storage/CR2-centreon-ssh:/var/spool/centreon/.ssh
+      - ./storage/centreon-ssh:/central-ssh:ro
+
+  centreon-remote-3:
+    build: ./centreon-remote
+    depends_on:
+      - centreon-web
+    environment:
+      <<: *commonVars
+      CR_MYSQL_USER: "CR3_centreon"
+      CR_MYSQL_PWD: "c3ntr30n"
+      CR_DB_CENTREON: "CR3_centreon"
+      CR_DB_STORAGE: "CR3_centreon_storage"
+    ports:
+      - "10083:80"
+    volumes:
+      - ./storage/CR3-centreon-conf:/etc/centreon
+      - ./storage/CR3-centreon-ssh:/var/spool/centreon/.ssh
+      - ./storage/centreon-ssh:/central-ssh:ro
+
   centreon-db:
     image: mariadb:10.1
     command: mysqld --open-files-limit=32000
     volumes:
-      - ./centreon-db:/var/lib/mysql
-    environment:
-      MYSQL_ROOT_PASSWORD: "change123"
+      - ./storage/centreon-db:/var/lib/mysql
+    environment: *commonVars
+
