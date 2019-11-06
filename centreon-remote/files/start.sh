@@ -212,10 +212,10 @@ addRemote() {
     echo $CURL_OUTPUT
 
     # Sleeping to receivied data from central
-    sleep 15
+    sleep 30
     # Kill supervisor
     kill $PID_SUPER
-    sleep 10
+    sleep 15
 }
 
 # Always check and fix permission
