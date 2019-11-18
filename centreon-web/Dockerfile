@@ -15,6 +15,7 @@ RUN yum install -y \
     rsyslog \
     cronie \
     net-snmp \
+    nc \
   && yum install --nogpgcheck -y http://yum.centreon.com/standard/19.10/el7/stable/noarch/RPMS/${CENTREON_REPO_VERSION} \
   && yum install -y \
     centreon-base-config-centreon-engine \
@@ -55,3 +56,6 @@ COPY files/start.sh /start.sh
 RUN chmod +x /start.sh
 
 CMD /start.sh
+
+HEALTHCHECK --interval=60s --timeout=30s --retries=5 \
+CMD /usr/bin/nc -z localhost 5669
