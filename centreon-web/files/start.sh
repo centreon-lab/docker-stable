@@ -239,10 +239,13 @@ chown -vR centreon:centreon /var/spool/centreon/.ssh
 if [ ! -f /var/spool/centreon/.ssh/config ]; then
     su - centreon -c "cat <<EOF > .ssh/config
 Compression yes
+LogLevel ERROR
 Host *
     StrictHostKeyChecking no
 EOF"
 fi
+# Disable strict check on arguments of ssh command
+sed -i 's/StrictHostKeyChecking=yes/StrictHostKeyChecking=no/g' /usr/share/perl5/vendor_perl/centreon/script/centcore.pm
 if [ ! -f /var/spool/centreon/.ssh/id_rsa.pub ]; then
     su - centreon -c "ssh-keygen -t rsa -N \"\" -f ~/.ssh/id_rsa"
 fi
