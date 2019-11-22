@@ -3,8 +3,6 @@ Docker using stable repository
 
 ![docker-compose-diagram](doc/images/diagram-docker-compose.png)
 
-[![asciicast](https://asciinema.org/a/fd3IpIoRupeJbhMCH8Q6Op1PK.svg)](https://asciinema.org/a/fd3IpIoRupeJbhMCH8Q6Op1PK)
-
 Prerequisites:
 
 - Docker-compose: <https://docs.docker.com/compose/>
@@ -51,3 +49,8 @@ For clean all environment:
 ```bash
 docker-compose down -v --rmi local
 ```
+
+Screencast
+----------
+
+[![asciicast](https://asciinema.org/a/fd3IpIoRupeJbhMCH8Q6Op1PK.svg)](https://asciinema.org/a/fd3IpIoRupeJbhMCH8Q6Op1PK)
