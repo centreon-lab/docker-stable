@@ -1,7 +1,7 @@
 Docker using stable repository
 ==============================
 
-![diagram-docker-remote](docs/images/diagram-docker-remote.png)
+![diagram-docker-remote](doc/images/diagram-docker-remote.png)
 
 Prerequisites:
 
@@ -10,7 +10,7 @@ Prerequisites:
 Docker-compose fluxgram
 -----------------------
 
-![docker-compose-flux](docs/images/flux-docker-compose.png)
+![docker-compose-flux](doc/images/flux-docker-compose.png)
 
 Persistent data
 ---------------
