@@ -1,12 +1,16 @@
 Docker using stable repository
 ==============================
 
-[![asciicast](https://asciinema.org/a/fd3IpIoRupeJbhMCH8Q6Op1PK.svg)](https://asciinema.org/a/fd3IpIoRupeJbhMCH8Q6Op1PK)
+![diagram-docker-remote](docs/images/diagram-docker-remote.png)
 
 Prerequisites:
 
 - Docker-compose: <https://docs.docker.com/compose/>
 
+Docker-compose fluxgram
+-----------------------
+
+![docker-compose-flux](docs/images/flux-docker-compose.png)
 
 Persistent data
 ---------------
@@ -45,3 +49,8 @@ For clean all environment:
 ```bash
 docker-compose down -v --rmi local
 ```
+
+Screencast
+----------
+
+[![asciicast](https://asciinema.org/a/fd3IpIoRupeJbhMCH8Q6Op1PK.svg)](https://asciinema.org/a/fd3IpIoRupeJbhMCH8Q6Op1PK)
