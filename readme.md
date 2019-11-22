@@ -1,12 +1,18 @@
 Docker using stable repository
 ==============================
 
+![docker-compose-diagram](doc/images/diagram-docker-compose.png)
+
 [![asciicast](https://asciinema.org/a/fd3IpIoRupeJbhMCH8Q6Op1PK.svg)](https://asciinema.org/a/fd3IpIoRupeJbhMCH8Q6Op1PK)
 
 Prerequisites:
 
 - Docker-compose: <https://docs.docker.com/compose/>
 
+Docker-compose configuration
+----------------------------
+
+![docker-compose-desc](doc/images/docker-compose-desc.png)
 
 Persistent data
 ---------------
