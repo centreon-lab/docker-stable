@@ -53,4 +53,4 @@ docker-compose down -v --rmi local
 Screencast
 ----------
 
-[![asciicast](https://asciinema.org/a/fd3IpIoRupeJbhMCH8Q6Op1PK.svg)](https://asciinema.org/a/fd3IpIoRupeJbhMCH8Q6Op1PK)
+[![youtube](http://i.imgur.com/tDiuIm0.png)](https://youtu.be/5GtVYwrKAWA)
