@@ -38,46 +38,65 @@ testMySQL() {
     fi
 }
 
+# EMS vars
+function getLastVersion() {
+    echo $(
+      curl http://repo.centreon.com/yum/internal/20.04/el7/noarch/$1/ \
+        | grep "<tr>" \
+        | tail -2 \
+        | sed -n '1p' \
+        | grep -o -P '(?<=href\=\").*(?=\/\")' \
+        | sed 's/.*-//'
+    )
+}
+
+# Centreon-web, get last devel version
+CWEB_LAST_VERSION=$(curl http://repo.centreon.com/yum/internal/20.04/el7/noarch/web/ |grep "<tr>" | tail -2 | sed -n '1p' | grep -o -P '(?<=href\=\").*(?=\/\")')
+curl http://repo.centreon.com/yum/internal/20.04/el7/noarch/web/${CWEB_LAST_VERSION}/centreon-internal.repo > /etc/yum.repos.d/centreon-web-devel.repo
+sed -i 's/srvi-repo.int.centreon.com/repo.centreon.com/' /etc/yum.repos.d/centreon-web-devel.repo
+
 function installPlugins() {
 
-    # Install JQ tool (https://stedolan.github.io/jq/)
-    # to help manage json output in shell
-    curl -o /usr/sbin/jq -q -L -g https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
-    chmod +x /usr/sbin/jq
+    # Install all packages to ppm
+    yum install -y http://yum.centreon.com/plugin-packs/2e83f5ff110c44a9cab8f8c7ebbe3c4f/20.04/el7/stable/noarch/RPMS/centreon-plugin-packs-release-20.04-1.el7.centos.noarch.rpm
+    yum install -y centreon-pp-manager
+    yum install -y centreon-pack-*
+    yum install -y centreon-plugin-*
 
-    SLUGS=$(curl -q -L -g 'https://api.imp.centreon.com/api/pluginpack/pluginpack?sort=catalog_level&by=asc&page[number]=1&page[size]=20')
+    API_TOKEN=$(curl -q -d "username=admin&password=${CENTREON_ADMIN_PASSWD}" \
+       "${CENTREON_HOST}/centreon/api/index.php?action=authenticate" \
+        | cut -f2 -d":" | sed -e "s/\"//g" -e "s/}//"
+    )
 
     PLUGINS=(
-      base-generic
-      applications-databases-mysql
-      operatingsystems-linux-snmp
-      applications-monitoring-centreon-database
-      applications-monitoring-centreon-central
+      base-generic:3.2.2
+      applications-databases-mysql:3.1.6
+      operatingsystems-linux-snmp:3.2.1
+      applications-monitoring-centreon-database:3.3.0
+      applications-monitoring-centreon-central:3.3.3
     )
 
     CENTREON_HOST="http://localhost"
     CURL_CMD="curl "
 
     for PLUGIN in "${PLUGINS[@]}"; do
-        JSON_PLUGIN="{\"slug\": \"${PLUGIN}\", \"version\": $(echo $SLUGS | jq ".data[].attributes | select(.slug | contains(\"${PLUGIN}\")).version"), \"action\": \"install\"}"
+        JSON_PLUGIN="{\"slug\": \"$(echo $PLUGIN|cut -d: -f1)\", \"version\": \"$(echo $PLUGIN|cut -d: -f2)\", \"action\": \"install\"}"
         STATUS=0
         while [ $STATUS -eq 0 ]; do
-            API_TOKEN=$(curl -q -d "username=admin&password=${CENTREON_ADMIN_PASSWD}" \
-                "${CENTREON_HOST}/centreon/api/index.php?action=authenticate" \
-                | cut -f2 -d":" | sed -e "s/\"//g" -e "s/}//"
-            )
             CURL_OUTPUT=$(${CURL_CMD} -X POST \
                 -H "Content-Type: application/json" \
                 -H "centreon-auth-token: $(read <<<"$API_TOKEN";echo "$REPLY")" \
                 -d "{\"pluginpack\":[${JSON_PLUGIN}]}" \
                 "${CENTREON_HOST}/centreon/api/index.php?object=centreon_pp_manager_pluginpack&action=installupdate"
             )
+            echo $CURL_OUTPUT
             if ! [ $(echo $CURL_OUTPUT | grep "Forbidden") ]; then
                 STATUS=1
             fi
         done
     done
 }
+
 
 function installWidgets() {
     WIDGETS=(
@@ -96,19 +115,190 @@ function installWidgets() {
     )
 
     CENTREON_HOST="http://localhost"
-    CURL_CMD="curl -o /dev/null"
-    API_TOKEN=$(curl -q -d "username=admin&password=${CENTREON_ADMIN_PASSWD}" \
-        "${CENTREON_HOST}/centreon/api/index.php?action=authenticate" \
-        | cut -f2 -d":" | sed -e "s/\"//g" -e "s/}//"
-    )
+    CURL_CMD="curl -q -o /dev/null"
 
     for WIDGET in "${WIDGETS[@]}"; do
+        # Install package
+        yum install -y centreon-widget-${WIDGET}
+        API_TOKEN=$(curl -q -d "username=admin&password=${CENTREON_ADMIN_PASSWD}" \
+            "${CENTREON_HOST}/centreon/api/index.php?action=authenticate" \
+            | cut -f2 -d":" | sed -e "s/\"//g" -e "s/}//"
+        )
         # Configure widget in Centreon
         ${CURL_CMD} -X POST \
             -H "Content-Type: application/json" \
             -H "centreon-auth-token: $(read <<<"$API_TOKEN";echo "$REPLY")" \
             "${CENTREON_HOST}/centreon/api/index.php?object=centreon_module&action=install&id=${WIDGET}&type=widget"
     done
+}
+
+function installEMS() {
+
+    # After Centreon configuration, install modules EMS
+    if [ ! "$(rpm -aq | grep centreon-map-server)" ] \
+        || [ ! "$(rpm -aq | grep centreon-map-web-client)" ]
+    then
+        MYSQL_HOST_CLIENT=$( \
+            echo "SELECT host FROM information_schema.processlist WHERE ID=connection_id();" \
+            | mysql -u root --password="${MYSQL_ROOT_PASSWORD}" -h ${MYSQL_HOST} \
+            | sed 1d | cut -f1 -d":" \
+        )
+        echo "CREATE USER 'centreon_map'@'${MYSQL_HOST_CLIENT}' IDENTIFIED BY '${MYSQL_PASSWD}';" \
+            | mysql -u root --password="${MYSQL_ROOT_PASSWORD}" -h ${MYSQL_HOST}
+        echo "GRANT SELECT ON centreon_storage.* TO 'centreon_map'@'${MYSQL_HOST_CLIENT}';" \
+            | mysql -u root --password="${MYSQL_ROOT_PASSWORD}" -h ${MYSQL_HOST}
+        echo "GRANT SELECT, INSERT ON centreon.* TO 'centreon_map'@'${MYSQL_HOST_CLIENT}';" \
+            | mysql -u root --password="${MYSQL_ROOT_PASSWORD}" -h ${MYSQL_HOST}
+
+        MAP_LAST_VERSION=$(getLastVersion "map-server")
+        yum install -y \
+            http://repo.centreon.com/yum/internal/20.04/el7/noarch/map-server/centreon-map-server-20.04.0-${MAP_LAST_VERSION}/centreon-map-server-20.04.0-${MAP_LAST_VERSION}.el7.noarch.rpm \
+            http://repo.centreon.com/yum/internal/20.04/el7/noarch/map-web/centreon-map-web-20.04.0-${MAP_LAST_VERSION}/centreon-map-web-client-20.04.0-${MAP_LAST_VERSION}.el7.centos.noarch.rpm
+        cd /etc/centreon-studio
+        mv -v /tmp/map-vars.sh /etc/centreon-studio/vars.sh
+        find /etc/centreon-studio -type f -name \*.sh | xargs chmod -v +x
+        export PATH="$PATH:/etc/centreon-studio"
+        sed -i \
+            -e "s/##CENTREON_ADMIN_PASSWORD##/${CENTREON_ADMIN_PASSWD}/g" \
+            -e "s/##CENTREON_HOST_DATABASE##/${MYSQL_HOST}/g" \
+            -e "s/##CENTREON_USER_DB_PASSWORD##/${MYSQL_PASSWD}/g" \
+            -e "s/##MYSQL_ROOT_PASSWORD##/${MYSQL_ROOT_PASSWORD}/g" \
+            /etc/centreon-studio/vars.sh
+        ./configure.sh -a
+        systemctl restart cbd
+        systemctl start tomcat
+        systemctl enable tomcat
+    fi
+    if [ ! "$(rpm -aq | grep centreon-bam-server)" ]; then
+        BAM_LAST_VERSION=$(getLastVersion "bam")
+        yum install -y http://repo.centreon.com/yum/internal/20.04/el7/noarch/bam/centreon-bam-server-20.04.0-${BAM_LAST_VERSION}/centreon-bam-server-20.04.0-${BAM_LAST_VERSION}.el7.centos.noarch.rpm
+    fi
+    if [ ! "$(rpm -aq | grep centreon-bi-server)" ] \
+          || [ ! "$(rpm -aq | grep centreon-bi-engine)" ] \
+          || [ ! "$(rpm -aq | grep centreon-bi-report)" ] \
+          || [ ! "$(rpm -aq | grep centreon-bi-etl)" ] \
+          || [ ! "$(rpm -aq | grep centreon-bi-reporting-server)" ]
+    then
+        MYSQL_HOST_CLIENT=$( \
+            echo "SELECT host FROM information_schema.processlist WHERE ID=connection_id();" \
+            | mysql -u root --password="${MYSQL_ROOT_PASSWORD}" -h ${MYSQL_HOST} \
+            | sed 1d | cut -f1 -d":" \
+        )
+        echo "CREATE USER 'centreonbi'@'${MYSQL_HOST_CLIENT}' IDENTIFIED BY '${MYSQL_PASSWD}';" \
+            | mysql -u root --password="${MYSQL_ROOT_PASSWORD}" -h ${MYSQL_HOST}
+        echo "GRANT ALL PRIVILEGES ON centreon_storage.* TO 'centreonbi'@'${MYSQL_HOST_CLIENT}';" \
+            | mysql -u root --password="${MYSQL_ROOT_PASSWORD}" -h ${MYSQL_HOST}
+        echo "GRANT ALL PRIVILEGES ON centreon.* TO 'centreonbi'@'${MYSQL_HOST_CLIENT}';" \
+            | mysql -u root --password="${MYSQL_ROOT_PASSWORD}" -h ${MYSQL_HOST}
+        MBI_LAST_VERSION=$(getLastVersion "mbi-web")
+        yum install -y http://repo.centreon.com/yum/internal/20.04/el7/noarch/mbi-web/centreon-bi-server-20.04.0-${MBI_LAST_VERSION}/centreon-bi-server-20.04.0-${MBI_LAST_VERSION}.el7.centos.noarch.rpm
+        for PACK in centreon-bi-engine centreon-bi-report centreon-bi-etl centreon-bi-reporting-server; do
+            MBI_LAST_VERSION=$(getLastVersion "$(echo $PACK | sed 's/centreon-/m/')")
+            yum install -y \
+                http://repo.centreon.com/yum/internal/20.04/el7/noarch/$(echo $PACK | sed 's/centreon-/m/')/${PACK}-20.04.0-${MBI_LAST_VERSION}/${PACK}-20.04.0-${MBI_LAST_VERSION}.el7.centos.noarch.rpm
+        done
+        mv -v /tmp/cbis-profile.xml /etc/centreon-bi/cbis-profile.xml
+        mv -v /tmp/reports-profile.xml /etc/centreon-bi/reports-profile.xml
+        sed -i \
+            -e "s/##CENTREON_USER_DB_PASSWORD##/${MYSQL_PASSWD}/g" \
+            /etc/centreon-bi/cbis-profile.xml
+        sed -i \
+            -e "s/##CENTREON_USER_DB_PASSWORD##/${MYSQL_PASSWD}/g" \
+            /etc/centreon-bi/reports-profile.xml
+        systemctl enable cbis
+    fi
+
+    MODULES=(
+        centreon-map4-web-client
+        centreon-bam-server
+        centreon-bi-server
+    )
+
+    WIDGETS=(
+        bam-ba-list
+        bam-ba-listing
+        mbi-ba-mtbf-mtrs
+        mbi-ba-availability-graph-day
+        mbi-ba-availability-gauge
+        mbi-ba-availability-graph-month
+        mbi-bv-availability-graph-month
+        mbi-hgs-hc-by-host-mtbf-mtrs
+        mbi-hg-availability-by-host-graph-day
+        mbi-hg-availability-by-hc-graph-month
+        mbi-hgs-availability-by-hg-graph-month
+        mbi-hgs-performances-Top-X
+        mbi-hgs-hcs-scs-metric-performance-day
+        mbi-metric-capacity-planning
+        mbi-hgs-hc-by-service-mtbf-mtrs
+        mbi-storage-list-near-saturation
+        mbi-hgs-hc-by-service-mtbf-mtrs
+        mbi-typical-performance-day
+        centreon-map4-web-client
+    )
+
+    CENTREON_HOST="http://localhost"
+    CURL_CMD="curl "
+
+    # Install modules
+    for MODULE in "${MODULES[@]}"; do
+        STATUS=0
+        while [ $STATUS -eq 0 ]; do
+            API_TOKEN=$(curl -q -d "username=admin&password=${CENTREON_ADMIN_PASSWD}" \
+                "${CENTREON_HOST}/centreon/api/index.php?action=authenticate" \
+                | cut -f2 -d":" | sed -e "s/\"//g" -e "s/}//"
+            )
+            CURL_OUTPUT=$(${CURL_CMD} -X POST \
+                -H "Content-Type: application/json" \
+                -H "centreon-auth-token: $(read <<<"$API_TOKEN";echo "$REPLY")" \
+                "${CENTREON_HOST}/centreon/api/index.php?object=centreon_module&action=install&id=${MODULE}&type=module"
+            )
+            if [ $DEBUG -eq 1 ]; then
+                echo "Curl ouput: ${CURL_OUTPUT}"
+            fi
+            if ! [ $(echo $CURL_OUTPUT | grep "Forbidden") ]; then
+                STATUS=1
+            fi
+        done
+    done
+
+    # Install widgets
+    for WIDGET in "${WIDGETS[@]}"; do
+        STATUS=0
+        while [ $STATUS -eq 0 ]; do
+            API_TOKEN=$(curl -q -d "username=admin&password=${CENTREON_ADMIN_PASSWD}" \
+                "${CENTREON_HOST}/centreon/api/index.php?action=authenticate" \
+                | cut -f2 -d":" | sed -e "s/\"//g" -e "s/}//"
+            )
+            # Configure widget in Centreon
+            CURL_OUTPUT=$(${CURL_CMD} -X POST \
+                -H "Content-Type: application/json" \
+                -H "centreon-auth-token: $(read <<<"$API_TOKEN";echo "$REPLY")" \
+                "${CENTREON_HOST}/centreon/api/index.php?object=centreon_module&action=install&id=${WIDGET}&type=widget"
+            )
+            if [ $DEBUG -eq 1 ]; then
+                echo "Curl ouput: ${CURL_OUTPUT}"
+            fi
+            if ! [ $(echo $CURL_OUTPUT | grep "Forbidden") ]; then
+                STATUS=1
+            fi
+        done
+    done
+}
+
+function sendLicenses() {
+    CENTREON_HOST="http://localhost"
+    CURL_CMD="curl -q -o /dev/null"
+    API_TOKEN=$(curl -q -d "username=admin&password=${CENTREON_ADMIN_PASSWD}" \
+        "${CENTREON_HOST}/centreon/api/index.php?action=authenticate" \
+        | cut -f2 -d":" | sed -e "s/\"//g" -e "s/}//"
+    )
+
+    ${CURL_CMD} -X POST \
+        -H "accept: application/json" \
+        -H "Content-Type: multipart/form-data" \
+        -H "centreon-auth-token: $(read <<<"$API_TOKEN";echo "$REPLY")" \
+        -F "file[]=@/tmp/licenses.zip" \
+        "${CENTREON_HOST}/centreon/api/index.php?object=centreon_license&action=file"
 }
 
 function initialConfiguration() {
@@ -146,26 +336,27 @@ function initialConfiguration() {
     chown -R apache:apache /etc/centreon-broker/*
 }
 
-InstallDbCentreon() {
+function InstallDbCentreon() {
+
     CENTREON_HOST="http://localhost"
     COOKIE_FILE="/tmp/install.cookie"
-    CURL_CMD="curl -b ${COOKIE_FILE}"
+    CURL_CMD="curl -q -o /dev/null -b ${COOKIE_FILE}"
 
-    ${CURL_CMD} "${CENTREON_HOST}/centreon/install/install.php"
+    curl -q -c ${COOKIE_FILE} ${CENTREON_HOST}/centreon/install/install.php
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/step.php?action=stepContent"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/step.php?action=nextStep"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/step.php?action=nextStep"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/process/process_step3.php" \
-        --data 'install_dir_engine=%2Fusr%2Fshare%2Fcentreon-engine&centreon_engine_stats_binary=%2Fusr%2Fsbin%2Fcentenginestats&monitoring_var_lib=%2Fvar%2Flib%2Fcentreon-engine&centreon_engine_connectors=%2Fusr%2Flib64%2Fcentreon-connector&centreon_engine_lib=%2Fusr%2Flib64%2Fcentreon-engine&centreonplugins=%2Fusr%2Flib%2Fcentreon%2Fplugins%2F'
+        --data "install_dir_engine=%2Fusr%2Fshare%2Fcentreon-engine&centreon_engine_stats_binary=%2Fusr%2Fsbin%2Fcentenginestats&monitoring_var_lib=%2Fvar%2Flib%2Fcentreon-engine&centreon_engine_connectors=%2Fusr%2Flib64%2Fcentreon-connector&centreon_engine_lib=%2Fusr%2Flib%2Fcentreon-engine&centreonplugins=%2Fusr%2Flib%2Fcentreon%2Fplugins%2F"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/step.php?action=nextStep"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/process/process_step4.php" \
-        --data 'centreonbroker_etc=%2Fetc%2Fcentreon-broker&centreonbroker_cbmod=%2Fusr%2Flib64%2Fnagios%2Fcbmod.so&centreonbroker_log=%2Fvar%2Flog%2Fcentreon-broker&centreonbroker_varlib=%2Fvar%2Flib%2Fcentreon-broker&centreonbroker_lib=%2Fusr%2Fshare%2Fcentreon%2Flib%2Fcentreon-broker'
+        --data "centreonbroker_etc=%2Fetc%2Fcentreon-broker&centreonbroker_cbmod=%2Fusr%2Flib64%2Fnagios%2Fcbmod.so&centreonbroker_log=%2Fvar%2Flog%2Fcentreon-broker&centreonbroker_varlib=%2Fvar%2Flib%2Fcentreon-broker&centreonbroker_lib=%2Fusr%2Fshare%2Fcentreon%2Flib%2Fcentreon-broker"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/step.php?action=nextStep"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/process/process_step5.php" \
         --data "admin_password=${CENTREON_ADMIN_PASSWD}&confirm_password=${CENTREON_ADMIN_PASSWD}&firstname=${CENTREON_ADMIN_NAME}&lastname=${CENTREON_ADMIN_NAME}&email=${CENTREON_ADMIN_EMAIL}"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/step.php?action=nextStep"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/process/process_step6.php" \
-        --data "address=${MYSQL_HOST}&port=${MYSQL_PORT}&root_user=root&root_password=${MYSQL_ROOT_PASSWORD}&db_configuration=${CENTRAL_DB_CENTREON}&db_storage=${CENTRAL_DB_STORAGE}&db_user=${CENTRAL_MYSQL_USER}&db_password=${CENTRAL_MYSQL_PWD}&db_password_confirm=${CENTRAL_MYSQL_PWD}"
+        --data "address=${MYSQL_HOST}&port=${MYSQL_PORT}&root_user=root&root_password=${MYSQL_ROOT_PASSWORD}&db_configuration=centreon&db_storage=centreon_storage&db_user=${MYSQL_USER}&db_password=${MYSQL_PASSWD}&db_password_confirm=${MYSQL_PASSWD}"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/step.php?action=nextStep"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/process/configFileSetup.php" -X POST
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/process/installConfigurationDb.php" -X POST
@@ -179,7 +370,6 @@ InstallDbCentreon() {
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/step.php?action=nextStep"
     ${CURL_CMD} "${CENTREON_HOST}/centreon/install/steps/process/process_step9.php" \
         --data "send_statistics=1"
-
 }
 
 # Always check and fix permission
