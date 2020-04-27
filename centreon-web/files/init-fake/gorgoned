@@ -1,0 +1,23 @@
+#!/bin/sh
+
+command="$1"
+
+case $command in
+    start)
+        /usr/bin/supervisorctl start gorgoned
+        ;;
+
+    stop)
+        /usr/bin/supervisorctl stop gorgoned
+        ;;
+
+    restart|reload)
+        /usr/bin/supervisorctl restart gorgoned
+        ;;
+
+    status)
+        /usr/bin/supervisorctl status gorgoned
+        ;;
+esac
+
+exit 0
